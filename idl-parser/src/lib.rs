@@ -852,7 +852,7 @@ pub fn parse_attribute_after_doc_maturity<'a>(
     .parse(span)
 }
 
-fn parse_cluster_member<'a, 'b>(c: &'a mut Cluster, span: Span<'b>) -> Option<Span<'b>> {
+fn parse_cluster_member<'a>(c: &mut Cluster, span: Span<'a>) -> Option<Span<'a>> {
     let (span, (doc_comment, maturity, _)) = tuple((
         whitespace0.map(|o| o.map(|DocComment(s)| s)),
         api_maturity,

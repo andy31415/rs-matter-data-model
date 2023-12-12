@@ -201,7 +201,7 @@ pub struct Attribute {
     pub is_timed_write: bool,
 }
 
-impl<'a> Default for Attribute {
+impl Default for Attribute {
     fn default() -> Self {
         Self {
             doc_comment: None,
