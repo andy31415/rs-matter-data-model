@@ -102,3 +102,28 @@ pub struct StructField {
     pub is_nullable: bool,
     pub is_fabric_sensitive: bool,
 }
+
+/// Defines the type of a structure.
+///
+/// Response structures contain the underlying code used to send
+/// that structure as a reply.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructType {
+    Regular,
+    Request,
+    Response(u64), // response with a code
+}
+
+/// A structure defined in IDL.
+///
+/// Structures may be regular (as data types), request (used in command inputs)
+/// or responses (used as command outputs, have an id)
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Struct {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub struct_type: StructType,
+    pub id: String,
+    pub fields: Vec<StructField>,
+    pub is_fabric_scoped: bool,
+}

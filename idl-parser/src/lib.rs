@@ -17,7 +17,9 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field, StructField};
+use data_model::{
+    ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field, Struct, StructField, StructType,
+};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -566,84 +568,56 @@ fn struct_fields(span: Span) -> IResult<Span, Vec<StructField>, ParseError> {
     .parse(span)
 }
 
-/// Defines the type of a structure.
-///
-/// Response structures contain the underlying code used to send
-/// that structure as a reply.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StructType {
-    Regular,
-    Request,
-    Response(u64), // response with a code
+pub fn parse_struct(span: Span) -> IResult<Span, Struct, ParseError> {
+    let (span, doc_comment) = whitespace0.parse(span)?;
+    let doc_comment = doc_comment.map(|DocComment(s)| s);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+
+    parse_struct_after_doc_maturity(doc_comment, maturity, span)
 }
 
-/// A structure defined in IDL.
-///
-/// Structures may be regular (as data types), request (used in command inputs)
-/// or responses (used as command outputs, have an id)
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Struct<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub struct_type: StructType,
-    pub id: &'a str,
-    pub fields: Vec<StructField>,
-    pub is_fabric_scoped: bool,
-}
+fn parse_struct_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Struct, ParseError<'a>> {
+    let (span, struct_type) = opt(alt((tag_no_case("request"), tag_no_case("response"))))(span)?;
+    let struct_type = struct_type.map(|f| *f.fragment());
 
-impl Struct<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Struct<'_>, ParseError> {
-        let (span, doc_comment) = whitespace0.parse(span)?;
-        let doc_comment = doc_comment.map(|DocComment(s)| s);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+    let (span, _) = whitespace0.parse(span)?;
 
-        Self::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
+    let (span, attributes) = tags_set!(span, "fabric_scoped");
 
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Struct<'c>, ParseError<'b>> {
-        let (span, struct_type) =
-            opt(alt((tag_no_case("request"), tag_no_case("response"))))(span)?;
-        let struct_type = struct_type.map(|f| *f.fragment());
+    let is_fabric_scoped = attributes.contains("fabric_scoped");
 
-        let (span, _) = whitespace0.parse(span)?;
+    let (span, id) = delimited(
+        tuple((whitespace0, tag_no_case("struct"), whitespace1)),
+        parse_id,
+        whitespace0,
+    )
+    .parse(span)?;
 
-        let (span, attributes) = tags_set!(span, "fabric_scoped");
+    let (span, struct_type) = match struct_type {
+        Some("request") => (span, StructType::Request),
+        Some("response") => tuple((tag("="), whitespace0, positive_integer, whitespace0))
+            .map(|(_, _, id, _)| StructType::Response(id))
+            .parse(span)?,
+        _ => (span, StructType::Regular),
+    };
 
-        let is_fabric_scoped = attributes.contains("fabric_scoped");
+    let (span, fields) = struct_fields(span)?;
 
-        let (span, id) = delimited(
-            tuple((whitespace0, tag_no_case("struct"), whitespace1)),
-            parse_id,
-            whitespace0,
-        )
-        .parse(span)?;
-
-        let (span, struct_type) = match struct_type {
-            Some("request") => (span, StructType::Request),
-            Some("response") => tuple((tag("="), whitespace0, positive_integer, whitespace0))
-                .map(|(_, _, id, _)| StructType::Response(id))
-                .parse(span)?,
-            _ => (span, StructType::Regular),
-        };
-
-        let (span, fields) = struct_fields(span)?;
-
-        Ok((
-            span,
-            Struct {
-                doc_comment,
-                maturity,
-                struct_type,
-                id,
-                fields,
-                is_fabric_scoped,
-            },
-        ))
-    }
+    Ok((
+        span,
+        Struct {
+            doc_comment: doc_comment.map(|c| c.into()),
+            maturity,
+            struct_type,
+            id: id.into(),
+            fields,
+            is_fabric_scoped,
+        },
+    ))
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -980,7 +954,7 @@ pub struct Cluster<'a> {
 
     pub bitmaps: Vec<Bitmap>,
     pub enums: Vec<Enum>,
-    pub structs: Vec<Struct<'a>>,
+    pub structs: Vec<Struct>,
 
     pub events: Vec<Event<'a>>,
     pub attributes: Vec<Attribute<'a>>,
@@ -1016,7 +990,7 @@ impl<'a> Cluster<'a> {
             self.enums.push(e);
             return Some(rest);
         }
-        if let Ok((rest, s)) = Struct::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, s)) = parse_struct_after_doc_maturity(doc_comment, maturity, span) {
             self.structs.push(s);
             return Some(rest);
         }
@@ -1684,7 +1658,7 @@ mod tests {
                     doc_comment: None,
                     maturity: ApiMaturity::STABLE,
                     struct_type: StructType::Response(5),
-                    id: "CommissioningCompleteResponse",
+                    id: "CommissioningCompleteResponse".into(),
                     fields: vec![StructField {
                         field: Field {
                             data_type: DataType::scalar("char_string"),
@@ -1900,7 +1874,7 @@ mod tests {
     #[test]
     fn test_parse_struct() {
         assert_parse_ok(
-            Struct::parse(
+            parse_struct(
                 "
               struct ExtensionFieldSet {
                 cluster_id clusterID = 0;
@@ -1912,7 +1886,7 @@ mod tests {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
                 struct_type: StructType::Regular,
-                id: "ExtensionFieldSet",
+                id: "ExtensionFieldSet".into(),
                 fields: vec![
                     StructField {
                         field: Field {
@@ -1941,7 +1915,7 @@ mod tests {
             },
         );
         assert_parse_ok(
-            Struct::parse(
+            parse_struct(
                 "
                  request struct TestEventTriggerRequest {
                    octet_string<16> enableKey = 0;
@@ -1953,7 +1927,7 @@ mod tests {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
                 struct_type: StructType::Request,
-                id: "TestEventTriggerRequest",
+                id: "TestEventTriggerRequest".into(),
                 fields: vec![
                     StructField {
                         field: Field {
@@ -1983,7 +1957,7 @@ mod tests {
         );
 
         assert_parse_ok(
-            Struct::parse(
+            parse_struct(
                 "
                  /** this tests responses */
                  internal response struct TimeSnapshotResponse = 2 {
@@ -1993,10 +1967,10 @@ mod tests {
                 .into(),
             ),
             Struct {
-                doc_comment: Some(" this tests responses "),
+                doc_comment: Some(" this tests responses ".into()),
                 maturity: ApiMaturity::INTERNAL,
                 struct_type: StructType::Response(2),
-                id: "TimeSnapshotResponse",
+                id: "TimeSnapshotResponse".into(),
                 fields: vec![
                     StructField {
                         field: Field {
@@ -2026,7 +2000,7 @@ mod tests {
         );
 
         assert_parse_ok(
-            Struct::parse(
+            parse_struct(
                 "fabric_scoped struct ProviderLocation {
                    node_id providerNodeID = 1;
                    endpoint_no endpoint = 2;
@@ -2038,7 +2012,7 @@ mod tests {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
                 struct_type: StructType::Regular,
-                id: "ProviderLocation",
+                id: "ProviderLocation".into(),
                 fields: vec![
                     StructField {
                         field: Field {
