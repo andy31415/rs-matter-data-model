@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum};
+use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -464,18 +464,7 @@ pub fn parse_bitmap_after_doc_maturity<'a>(
     .parse(span)
 }
 
-/// Represents a generic field.
-///
-/// Fields have a type, name(id) and numeric code.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Field<'a> {
-    pub data_type: DataType,
-    pub id: &'a str,
-    pub code: u64,
-}
-
-impl Field<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Field<'_>, ParseError> {
+    pub fn parse_field(span: Span) -> IResult<Span, Field, ParseError> {
         tuple((
             whitespace0,
             parse_id,
@@ -503,13 +492,12 @@ impl Field<'_> {
                     is_list: list_marker.is_some(),
                     max_length,
                 },
-                id,
+                id: id.into(),
                 code,
             },
         )
         .parse(span)
     }
-}
 
 /// Grabs a tag set which are whitespace-separated list of items
 ///
@@ -548,16 +536,16 @@ macro_rules! tags_set {
 /// Specifically this adds structure specific information
 /// such as API maturity, optional/nullable/fabric_sensitive
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct StructField<'a> {
-    pub field: Field<'a>,
+pub struct StructField {
+    pub field: Field,
     pub maturity: ApiMaturity,
     pub is_optional: bool,
     pub is_nullable: bool,
     pub is_fabric_sensitive: bool,
 }
 
-impl StructField<'_> {
-    pub fn parse(span: Span) -> IResult<Span, StructField<'_>, ParseError> {
+impl StructField {
+    pub fn parse(span: Span) -> IResult<Span, StructField, ParseError> {
         let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
         let (span, attributes) = tags_set!(span, "optional", "nullable", "fabric_sensitive");
 
@@ -565,7 +553,7 @@ impl StructField<'_> {
         let is_nullable = attributes.contains("nullable");
         let is_fabric_sensitive = attributes.contains("fabric_sensitive");
 
-        let (span, field) = Field::parse(span)?;
+        let (span, field) = parse_field(span)?;
 
         Ok((
             span,
@@ -580,7 +568,7 @@ impl StructField<'_> {
     }
 }
 
-fn struct_fields(span: Span) -> IResult<Span, Vec<StructField<'_>>, ParseError> {
+fn struct_fields(span: Span) -> IResult<Span, Vec<StructField>, ParseError> {
     delimited(
         tag("{"),
         many0(delimited(
@@ -614,7 +602,7 @@ pub struct Struct<'a> {
     pub maturity: ApiMaturity,
     pub struct_type: StructType,
     pub id: &'a str,
-    pub fields: Vec<StructField<'a>>,
+    pub fields: Vec<StructField>,
     pub is_fabric_scoped: bool,
 }
 
@@ -723,7 +711,7 @@ pub struct Event<'a> {
     pub access: AccessPrivilege,
     pub id: &'a str,
     pub code: u64,
-    pub fields: Vec<StructField<'a>>,
+    pub fields: Vec<StructField>,
     pub is_fabric_sensitive: bool,
 }
 
@@ -884,7 +872,7 @@ impl Command<'_> {
 pub struct Attribute<'a> {
     pub doc_comment: Option<&'a str>,
     pub maturity: ApiMaturity,
-    pub field: StructField<'a>,
+    pub field: StructField,
     pub read_acl: AccessPrivilege,
     pub write_acl: AccessPrivilege,
     pub is_read_only: bool,
@@ -1689,7 +1677,7 @@ mod tests {
             ],
             attributes: vec![Attribute {
                 field: StructField {
-                    field: Field { data_type: DataType::list_of("attrib_id"), id: "attributeList", code: 65531 },
+                    field: Field { data_type: DataType::list_of("attrib_id"), id: "attributeList".into(), code: 65531 },
                     ..Default::default()
                 },
                 read_acl: AccessPrivilege::View,
@@ -1715,7 +1703,7 @@ mod tests {
                     fields: vec![StructField {
                         field: Field {
                             data_type: DataType::scalar("char_string"),
-                            id: "debugText",
+                            id: "debugText".into(),
                             code: 1
                         },
                         ..Default::default()
@@ -1738,7 +1726,7 @@ mod tests {
                 code: 0,
                 fields: vec![
                     StructField {
-                        field: Field { data_type: DataType::scalar("int16u") , id: "actionID", code: 0 },
+                        field: Field { data_type: DataType::scalar("int16u") , id: "actionID".into(), code: 0 },
                         ..Default::default()
                     }
                 ],
@@ -1757,7 +1745,7 @@ mod tests {
                 field: StructField {
                     field: Field {
                         data_type: DataType::scalar("int16u"),
-                        id: "identifyTime",
+                        id: "identifyTime".into(),
                         code: 123,
                     },
                     maturity: ApiMaturity::STABLE,
@@ -1789,7 +1777,7 @@ mod tests {
                 field: StructField {
                     field: Field {
                         data_type: DataType::list_of("boolean"),
-                        id: "x",
+                        id: "x".into(),
                         code: 0x123,
                     },
                     maturity: ApiMaturity::STABLE,
@@ -1866,7 +1854,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("node_id"),
-                            id: "adminNodeID",
+                            id: "adminNodeID".into(),
                             code: 1,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -1877,7 +1865,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("fabric_idx"),
-                            id: "fabricIndex",
+                            id: "fabricIndex".into(),
                             code: 254,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -1944,7 +1932,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("cluster_id"),
-                            id: "clusterID",
+                            id: "clusterID".into(),
                             code: 0,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -1955,7 +1943,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::list_of("AttributeValuePair"),
-                            id: "attributeValueList",
+                            id: "attributeValueList".into(),
                             code: 1,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -1985,7 +1973,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar_of_size("octet_string", 16),
-                            id: "enableKey",
+                            id: "enableKey".into(),
                             code: 0,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -1996,7 +1984,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("int64u"),
-                            id: "eventTrigger",
+                            id: "eventTrigger".into(),
                             code: 1,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -2028,7 +2016,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("systime_us"),
-                            id: "systemTimeUs",
+                            id: "systemTimeUs".into(),
                             code: 0,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -2039,7 +2027,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("epoch_us"),
-                            id: "UTCTimeUs",
+                            id: "UTCTimeUs".into(),
                             code: 1,
                         },
                         maturity: ApiMaturity::STABLE,
@@ -2070,7 +2058,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("node_id"),
-                            id: "providerNodeID",
+                            id: "providerNodeID".into(),
                             code: 1,
                         },
                         ..Default::default()
@@ -2078,7 +2066,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("endpoint_no"),
-                            id: "endpoint",
+                            id: "endpoint".into(),
                             code: 2,
                         },
                         ..Default::default()
@@ -2086,7 +2074,7 @@ mod tests {
                     StructField {
                         field: Field {
                             data_type: DataType::scalar("fabric_idx"),
-                            id: "fabricIndex",
+                            id: "fabricIndex".into(),
                             code: 254,
                         },
                         ..Default::default()
@@ -2104,7 +2092,7 @@ mod tests {
             StructField {
                 field: Field {
                     data_type: DataType::scalar("int8u"),
-                    id: "sceneCount",
+                    id: "sceneCount".into(),
                     code: 0,
                 },
                 maturity: ApiMaturity::STABLE,
@@ -2118,7 +2106,7 @@ mod tests {
             StructField {
                 field: Field {
                     data_type: DataType::scalar("int8u"),
-                    id: "currentScene",
+                    id: "currentScene".into(),
                     code: 1,
                 },
                 maturity: ApiMaturity::STABLE,
@@ -2134,7 +2122,7 @@ mod tests {
             StructField {
                 field: Field {
                     data_type: DataType::list_of("ExtensionFieldSet"),
-                    id: "extensionFieldSets",
+                    id: "extensionFieldSets".into(),
                     code: 5,
                 },
                 maturity: ApiMaturity::STABLE,
@@ -2148,26 +2136,26 @@ mod tests {
     #[test]
     fn test_parse_field() {
         assert_parse_ok(
-            Field::parse("bool test = 1".into()),
+            parse_field("bool test = 1".into()),
             Field {
                 data_type: DataType::scalar("bool"),
-                id: "test",
+                id: "test".into(),
                 code: 1,
             },
         );
         assert_parse_ok(
-            Field::parse("int32u test[] = 0x12".into()),
+            parse_field("int32u test[] = 0x12".into()),
             Field {
                 data_type: DataType::list_of("int32u"),
-                id: "test",
+                id: "test".into(),
                 code: 0x12,
             },
         );
         assert_parse_ok(
-            Field::parse("octet_string<123> other=10".into()),
+            parse_field("octet_string<123> other=10".into()),
             Field {
                 data_type: DataType::scalar_of_size("octet_string", 123),
-                id: "other",
+                id: "other".into(),
                 code: 10,
             },
         );

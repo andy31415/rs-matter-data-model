@@ -79,3 +79,14 @@ impl DataType {
         }
     }
 }
+
+/// Represents a generic field.
+///
+/// Fields have a type, name(id) and numeric code.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Field {
+    pub data_type: DataType,
+    pub id: String,
+    pub code: u64,
+}
+
