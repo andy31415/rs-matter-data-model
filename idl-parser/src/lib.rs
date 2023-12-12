@@ -18,8 +18,8 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
-    AccessPrivilege, ApiMaturity, Attribute, Bitmap, Command, ConstantEntry, DataType, Enum, Event,
-    EventPriority, Field, Struct, StructField, StructType,
+    AccessPrivilege, ApiMaturity, Attribute, Bitmap, Cluster, Command, ConstantEntry, DataType,
+    Enum, Event, EventPriority, Field, Struct, StructField, StructType,
 };
 
 // easier to type and not move str around
@@ -852,115 +852,95 @@ pub fn parse_attribute_after_doc_maturity<'a>(
     .parse(span)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Cluster<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
+fn parse_cluster_member<'a, 'b>(c: &'a mut Cluster, span: Span<'b>) -> Option<Span<'b>> {
+    let (span, (doc_comment, maturity, _)) = tuple((
+        whitespace0.map(|o| o.map(|DocComment(s)| s)),
+        api_maturity,
+        whitespace0,
+    ))
+    .parse(span)
+    .ok()?;
 
-    pub id: &'a str,
-    pub code: u64,
-    pub revision: u64,
+    if let Ok((rest, revision)) = delimited(
+        tuple((tag_no_case("revision"), whitespace1)),
+        positive_integer,
+        tuple((whitespace0, tag(";"))),
+    )
+    .parse(span)
+    {
+        c.revision = revision;
+        return Some(rest);
+    }
 
-    pub bitmaps: Vec<Bitmap>,
-    pub enums: Vec<Enum>,
-    pub structs: Vec<Struct>,
-
-    pub events: Vec<Event>,
-    pub attributes: Vec<Attribute>,
-    pub commands: Vec<Command>,
+    if let Ok((rest, b)) = parse_bitmap_after_doc_maturity(doc_comment, maturity, span) {
+        c.bitmaps.push(b);
+        return Some(rest);
+    }
+    if let Ok((rest, e)) = parse_enum_after_doc_maturity(doc_comment, maturity, span) {
+        c.enums.push(e);
+        return Some(rest);
+    }
+    if let Ok((rest, s)) = parse_struct_after_doc_maturity(doc_comment, maturity, span) {
+        c.structs.push(s);
+        return Some(rest);
+    }
+    if let Ok((rest, a)) = parse_attribute_after_doc_maturity(doc_comment, maturity, span) {
+        c.attributes.push(a);
+        return Some(rest);
+    }
+    if let Ok((rest, cmd)) = parse_command_after_doc_maturity(doc_comment, maturity, span) {
+        c.commands.push(cmd);
+        return Some(rest);
+    }
+    if let Ok((rest, e)) = parse_event_after_doc_maturity(doc_comment, maturity, span) {
+        c.events.push(e);
+        return Some(rest);
+    }
+    None
 }
 
-impl<'a> Cluster<'a> {
-    fn parse_member<'b: 'a, 'c>(&'c mut self, span: Span<'b>) -> Option<Span<'b>> {
-        let (span, (doc_comment, maturity, _)) = tuple((
-            whitespace0.map(|o| o.map(|DocComment(s)| s)),
-            api_maturity,
-            whitespace0,
-        ))
-        .parse(span)
-        .ok()?;
+pub fn parse_cluster(span: Span) -> IResult<Span, Cluster, ParseError> {
+    let (span, doc_comment) = whitespace0.parse(span)?;
+    let doc_comment = doc_comment.map(|DocComment(s)| s);
 
-        if let Ok((rest, revision)) = delimited(
-            tuple((tag_no_case("revision"), whitespace1)),
-            positive_integer,
-            tuple((whitespace0, tag(";"))),
-        )
-        .parse(span)
-        {
-            self.revision = revision;
-            return Some(rest);
-        }
-
-        if let Ok((rest, b)) = parse_bitmap_after_doc_maturity(doc_comment, maturity, span) {
-            self.bitmaps.push(b);
-            return Some(rest);
-        }
-        if let Ok((rest, e)) = parse_enum_after_doc_maturity(doc_comment, maturity, span) {
-            self.enums.push(e);
-            return Some(rest);
-        }
-        if let Ok((rest, s)) = parse_struct_after_doc_maturity(doc_comment, maturity, span) {
-            self.structs.push(s);
-            return Some(rest);
-        }
-        if let Ok((rest, a)) = parse_attribute_after_doc_maturity(doc_comment, maturity, span) {
-            self.attributes.push(a);
-            return Some(rest);
-        }
-        if let Ok((rest, c)) = parse_command_after_doc_maturity(doc_comment, maturity, span) {
-            self.commands.push(c);
-            return Some(rest);
-        }
-        if let Ok((rest, e)) = parse_event_after_doc_maturity(doc_comment, maturity, span) {
-            self.events.push(e);
-            return Some(rest);
-        }
-        None
-    }
-
-    pub fn parse(span: Span) -> IResult<Span, Cluster<'_>, ParseError> {
-        let (span, doc_comment) = whitespace0.parse(span)?;
-        let doc_comment = doc_comment.map(|DocComment(s)| s);
-
-        let (span, maturity) = tuple((api_maturity, whitespace0))
-            .map(|(m, _)| m)
-            .parse(span)?;
-
-        let (span, mut cluster) = delimited(
-            tuple((
-                opt(tuple((
-                    alt((tag_no_case("client"), tag_no_case("server"))),
-                    whitespace1,
-                ))),
-                tag_no_case("cluster"),
-                whitespace1,
-            )),
-            tuple((
-                parse_id,
-                whitespace0,
-                tag("="),
-                whitespace0,
-                positive_integer,
-            )),
-            whitespace0,
-        )
-        .map(|(id, _, _, _, code)| Cluster {
-            doc_comment,
-            maturity,
-            id,
-            code,
-            ..Default::default()
-        })
+    let (span, maturity) = tuple((api_maturity, whitespace0))
+        .map(|(m, _)| m)
         .parse(span)?;
 
-        let (mut span, _) = tag("{").parse(span)?;
-        while let Some(rest) = cluster.parse_member(span) {
-            span = rest;
-        }
+    let (span, mut cluster) = delimited(
+        tuple((
+            opt(tuple((
+                alt((tag_no_case("client"), tag_no_case("server"))),
+                whitespace1,
+            ))),
+            tag_no_case("cluster"),
+            whitespace1,
+        )),
+        tuple((
+            parse_id,
+            whitespace0,
+            tag("="),
+            whitespace0,
+            positive_integer,
+        )),
+        whitespace0,
+    )
+    .map(|(id, _, _, _, code)| Cluster {
+        doc_comment: doc_comment.map(|c| c.into()),
+        maturity,
+        id: id.into(),
+        code,
+        ..Default::default()
+    })
+    .parse(span)?;
 
-        // finally consume the final tag
-        value(cluster, tuple((whitespace0, tag("}")))).parse(span)
+    let (mut span, _) = tag("{").parse(span)?;
+    while let Some(rest) = parse_cluster_member(&mut cluster, span) {
+        span = rest;
     }
+
+    // finally consume the final tag
+    value(cluster, tuple((whitespace0, tag("}")))).parse(span)
 }
 
 // Represents a specific device type
@@ -1281,13 +1261,13 @@ pub fn endpoint(span: Span) -> IResult<Span, Endpoint<'_>, ParseError> {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
 pub struct Idl<'a> {
-    pub clusters: Vec<Cluster<'a>>,
+    pub clusters: Vec<Cluster>,
     pub endpoints: Vec<Endpoint<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 enum InternalIdlParsedData<'a> {
-    Cluster(Cluster<'a>),
+    Cluster(Cluster),
     Endpoint(Endpoint<'a>),
     Whitespace,
 }
@@ -1329,7 +1309,7 @@ impl Idl<'_> {
         let mut span = input;
         while !span.is_empty() {
             let (rest, r) = alt((
-                Cluster::parse.map(InternalIdlParsedData::Cluster),
+                parse_cluster.map(InternalIdlParsedData::Cluster),
                 endpoint.map(InternalIdlParsedData::Endpoint),
                 value(InternalIdlParsedData::Whitespace, whitespace1),
             ))
@@ -1498,7 +1478,7 @@ mod tests {
 
     #[test]
     fn test_parse_cluster() {
-        assert_parse_ok(Cluster::parse("
+        assert_parse_ok(parse_cluster("
           /** This is totally made up */
           internal cluster MyTestCluster = 0x123 {
              revision 22; // just for testing
@@ -1525,9 +1505,9 @@ mod tests {
              fabric command access(invoke: administer) CommissioningComplete(): CommissioningCompleteResponse = 4;
           }
         ".into()), Cluster {
-            doc_comment: Some(" This is totally made up "),
+            doc_comment: Some(" This is totally made up ".into()),
             maturity: ApiMaturity::INTERNAL,
-            id: "MyTestCluster",
+            id: "MyTestCluster".into(),
             code: 0x123,
             revision: 22,
             enums: vec![

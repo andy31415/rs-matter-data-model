@@ -215,3 +215,21 @@ impl<'a> Default for Attribute {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Cluster {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+
+    pub id: String,
+    pub code: u64,
+    pub revision: u64,
+
+    pub bitmaps: Vec<Bitmap>,
+    pub enums: Vec<Enum>,
+    pub structs: Vec<Struct>,
+
+    pub events: Vec<Event>,
+    pub attributes: Vec<Attribute>,
+    pub commands: Vec<Command>,
+}
