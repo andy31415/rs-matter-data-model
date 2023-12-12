@@ -26,7 +26,12 @@ fn main() -> miette::Result<()> {
     let args = Args::parse();
 
     tracing_subscriber::registry()
-        .with(stdout_log.with_filter(args.log_level.unwrap_or(args.log_level.unwrap_or(LevelFilter::ERROR))))
+        .with(
+            stdout_log.with_filter(
+                args.log_level
+                    .unwrap_or(args.log_level.unwrap_or(LevelFilter::ERROR)),
+            ),
+        )
         .init();
 
     let contents = fs::read_to_string(args.name).expect("Valid input file");
