@@ -127,3 +127,33 @@ pub struct Struct {
     pub fields: Vec<StructField>,
     pub is_fabric_scoped: bool,
 }
+
+/// Privilege to access an attribute or invoke a command
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AccessPrivilege {
+    View,
+    Operate,
+    Manage,
+    Administer,
+}
+
+/// Priority of a specific event
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EventPriority {
+    Critical,
+    Info,
+    Debug,
+}
+
+/// An event that may be emited by a cluster
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Event {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub priority: EventPriority,
+    pub access: AccessPrivilege,
+    pub id: String,
+    pub code: u64,
+    pub fields: Vec<StructField>,
+    pub is_fabric_sensitive: bool,
+}

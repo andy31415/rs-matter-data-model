@@ -18,7 +18,8 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
-    ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field, Struct, StructField, StructType,
+    AccessPrivilege, ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Event, EventPriority,
+    Field, Struct, StructField, StructType,
 };
 
 // easier to type and not move str around
@@ -620,14 +621,6 @@ fn parse_struct_after_doc_maturity<'a>(
     ))
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AccessPrivilege {
-    View,
-    Operate,
-    Manage,
-    Administer,
-}
-
 pub fn access_privilege(span: Span) -> IResult<Span, AccessPrivilege, ParseError> {
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("view").parse(span) {
         return Ok((span, AccessPrivilege::View));
@@ -642,13 +635,6 @@ pub fn access_privilege(span: Span) -> IResult<Span, AccessPrivilege, ParseError
     value(AccessPrivilege::Administer, tag_no_case("administer")).parse(span)
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum EventPriority {
-    Critical,
-    Info,
-    Debug,
-}
-
 pub fn event_priority(span: Span) -> IResult<Span, EventPriority, ParseError> {
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("info").parse(span) {
         return Ok((span, EventPriority::Info));
@@ -661,74 +647,59 @@ pub fn event_priority(span: Span) -> IResult<Span, EventPriority, ParseError> {
     value(EventPriority::Debug, tag_no_case("debug")).parse(span)
 }
 
-/// An event structure inside the IDL
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Event<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub priority: EventPriority,
-    pub access: AccessPrivilege,
-    pub id: &'a str,
-    pub code: u64,
-    pub fields: Vec<StructField>,
-    pub is_fabric_sensitive: bool,
+pub fn parse_event(span: Span) -> IResult<Span, Event, ParseError> {
+    let (span, doc_comment) = whitespace0.parse(span)?;
+    let doc_comment = doc_comment.map(|DocComment(s)| s);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+
+    parse_event_after_doc_maturity(doc_comment, maturity, span)
 }
 
-impl Event<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Event<'_>, ParseError> {
-        let (span, doc_comment) = whitespace0.parse(span)?;
-        let doc_comment = doc_comment.map(|DocComment(s)| s);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+fn parse_event_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Event, ParseError<'a>> {
+    let (span, attributes) = tags_set!(span, "fabric_sensitive");
+    let is_fabric_sensitive = attributes.contains("fabric_sensitive");
 
-        Self::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
-
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Event<'c>, ParseError<'b>> {
-        let (span, attributes) = tags_set!(span, "fabric_sensitive");
-        let is_fabric_sensitive = attributes.contains("fabric_sensitive");
-
-        tuple((
-            preceded(whitespace0, event_priority),
-            whitespace1,
-            tag_no_case("event"),
-            whitespace1,
-            opt(delimited(
-                tuple((
-                    tag_no_case("access"),
-                    whitespace0,
-                    tag("("),
-                    whitespace0,
-                    tag_no_case("read"),
-                    tag(":"),
-                    whitespace0,
-                )),
-                access_privilege,
-                tuple((whitespace0, tag(")"))),
-            ))
-            .map(|p| p.unwrap_or(AccessPrivilege::View)),
-            preceded(whitespace0, parse_id),
-            preceded(
-                tuple((whitespace0, tag("="), whitespace0)),
-                positive_integer,
-            ),
-            preceded(whitespace0, struct_fields),
+    tuple((
+        preceded(whitespace0, event_priority),
+        whitespace1,
+        tag_no_case("event"),
+        whitespace1,
+        opt(delimited(
+            tuple((
+                tag_no_case("access"),
+                whitespace0,
+                tag("("),
+                whitespace0,
+                tag_no_case("read"),
+                tag(":"),
+                whitespace0,
+            )),
+            access_privilege,
+            tuple((whitespace0, tag(")"))),
         ))
-        .map(|(priority, _, _, _, access, id, code, fields)| Event {
-            doc_comment,
-            maturity,
-            priority,
-            access,
-            id,
-            code,
-            fields,
-            is_fabric_sensitive,
-        })
-        .parse(span)
-    }
+        .map(|p| p.unwrap_or(AccessPrivilege::View)),
+        preceded(whitespace0, parse_id),
+        preceded(
+            tuple((whitespace0, tag("="), whitespace0)),
+            positive_integer,
+        ),
+        preceded(whitespace0, struct_fields),
+    ))
+    .map(|(priority, _, _, _, access, id, code, fields)| Event {
+        doc_comment: doc_comment.map(|c| c.into()),
+        maturity,
+        priority,
+        access,
+        id: id.into(),
+        code,
+        fields,
+        is_fabric_sensitive,
+    })
+    .parse(span)
 }
 
 /// A command that can be executed on a cluster
@@ -956,7 +927,7 @@ pub struct Cluster<'a> {
     pub enums: Vec<Enum>,
     pub structs: Vec<Struct>,
 
-    pub events: Vec<Event<'a>>,
+    pub events: Vec<Event>,
     pub attributes: Vec<Attribute<'a>>,
     pub commands: Vec<Command<'a>>,
 }
@@ -1002,7 +973,7 @@ impl<'a> Cluster<'a> {
             self.commands.push(c);
             return Some(rest);
         }
-        if let Ok((rest, e)) = Event::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, e)) = parse_event_after_doc_maturity(doc_comment, maturity, span) {
             self.events.push(e);
             return Some(rest);
         }
@@ -1681,7 +1652,7 @@ mod tests {
                 maturity: ApiMaturity::STABLE,
                 priority: EventPriority::Info,
                 access: AccessPrivilege::View,
-                id: "StateChanged",
+                id: "StateChanged".into(),
                 code: 0,
                 fields: vec![
                     StructField {
@@ -1791,7 +1762,7 @@ mod tests {
     #[test]
     fn test_parse_event() {
         assert_parse_ok(
-            Event::parse(
+            parse_event(
                 "
               /** this is a catch-all */
               fabric_sensitive info event access(read: administer) AccessControlEntryChanged = 0 {
@@ -1802,11 +1773,11 @@ mod tests {
                 .into(),
             ),
             Event {
-                doc_comment: Some(" this is a catch-all "),
+                doc_comment: Some(" this is a catch-all ".into()),
                 maturity: ApiMaturity::STABLE,
                 priority: EventPriority::Info,
                 access: AccessPrivilege::Administer,
-                id: "AccessControlEntryChanged",
+                id: "AccessControlEntryChanged".into(),
                 code: 0,
                 is_fabric_sensitive: true,
                 fields: vec![
