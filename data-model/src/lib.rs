@@ -42,3 +42,40 @@ pub struct Bitmap {
     pub base_type: String,
     pub entries: Vec<ConstantEntry>,
 }
+
+/// A generic type such as integers, strings, enums etc.
+///
+/// Supports information if this is repeated/list as well
+/// as a maximum length (if applicable).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct DataType {
+    pub name: String,
+    pub is_list: bool,
+    pub max_length: Option<u64>,
+}
+
+impl DataType {
+    pub fn scalar(name: impl Into<String>) -> DataType {
+        DataType {
+            name: name.into(),
+            is_list: false,
+            max_length: None,
+        }
+    }
+
+    pub fn list_of(name: impl Into<String>) -> DataType {
+        DataType {
+            name: name.into(),
+            is_list: true,
+            max_length: None,
+        }
+    }
+
+    pub fn scalar_of_size(name: impl Into<String>, max_length: u64) -> DataType {
+        DataType {
+            name: name.into(),
+            is_list: false,
+            max_length: Some(max_length),
+        }
+    }
+}

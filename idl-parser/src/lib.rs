@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, Bitmap, ConstantEntry, Enum};
+use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -463,49 +463,12 @@ pub fn parse_bitmap_after_doc_maturity<'a>(
     .parse(span)
 }
 
-/// A generic type such as integers, strings, enums etc.
-///
-/// Supports information if this is repeated/list as well
-/// as a maximum length (if applicable).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct DataType<'a> {
-    name: &'a str,
-    is_list: bool,
-    max_length: Option<u64>,
-}
-
-impl<'a> DataType<'a> {
-    pub fn scalar(name: &'_ str) -> DataType<'_> {
-        DataType {
-            name,
-            is_list: false,
-            max_length: None,
-        }
-    }
-
-    pub fn list_of(name: &'_ str) -> DataType<'_> {
-        DataType {
-            name,
-            is_list: true,
-            max_length: None,
-        }
-    }
-
-    pub fn scalar_of_size(name: &'_ str, max_length: u64) -> DataType<'_> {
-        DataType {
-            name,
-            is_list: false,
-            max_length: Some(max_length),
-        }
-    }
-}
-
 /// Represents a generic field.
 ///
 /// Fields have a type, name(id) and numeric code.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Field<'a> {
-    pub data_type: DataType<'a>,
+    pub data_type: DataType,
     pub id: &'a str,
     pub code: u64,
 }
@@ -535,7 +498,7 @@ impl Field<'_> {
         .map(
             |(_, type_name, max_length, _, id, _, list_marker, _, _, code)| Field {
                 data_type: DataType {
-                    name: type_name,
+                    name: type_name.into(),
                     is_list: list_marker.is_some(),
                     max_length,
                 },
@@ -2064,11 +2027,7 @@ mod tests {
                 fields: vec![
                     StructField {
                         field: Field {
-                            data_type: DataType {
-                                name: "systime_us",
-                                is_list: false,
-                                max_length: None,
-                            },
+                            data_type: DataType::scalar("systime_us"),
                             id: "systemTimeUs",
                             code: 0,
                         },
@@ -2079,11 +2038,7 @@ mod tests {
                     },
                     StructField {
                         field: Field {
-                            data_type: DataType {
-                                name: "epoch_us",
-                                is_list: false,
-                                max_length: None,
-                            },
+                            data_type: DataType::scalar("epoch_us"),
                             id: "UTCTimeUs",
                             code: 1,
                         },
