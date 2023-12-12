@@ -22,3 +22,13 @@ pub struct ConstantEntry {
     pub id: String,
     pub code: u64,
 }
+
+/// A set of constant entries that correspont to an enumeration.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Enum {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub id: String,
+    pub base_type: String,
+    pub entries: Vec<ConstantEntry>,
+}

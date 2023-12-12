@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, ConstantEntry};
+use data_model::{ApiMaturity, ConstantEntry, Enum};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -337,7 +337,6 @@ pub fn parse_id(span: Span) -> IResult<Span, &str, ParseError> {
     )(span)
 }
 
-
 /// Parses a IDL representation of a constant entry.
 ///
 /// Consumes any whitespace BEFORE the entry.
@@ -372,7 +371,11 @@ pub fn constant_entry(span: Span) -> IResult<Span, ConstantEntry, ParseError> {
         whitespace0,
         tag(";"),
     ))
-    .map(|(_, maturity, _, id, _, _, _, code, _, _)| ConstantEntry { maturity, id: id.into(), code })
+    .map(|(_, maturity, _, id, _, _, _, code, _, _)| ConstantEntry {
+        maturity,
+        id: id.into(),
+        code,
+    })
     .parse(span)
 }
 
@@ -392,50 +395,38 @@ fn constant_entries_list(span: Span) -> IResult<Span, Vec<ConstantEntry>, ParseE
     .parse(span)
 }
 
-/// A set of constant entries that correspont to an enumeration.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Enum<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub id: &'a str,
-    pub base_type: &'a str,
-    pub entries: Vec<ConstantEntry>,
+pub fn parse_enum(span: Span) -> IResult<Span, Enum, ParseError> {
+    let (span, comment) = whitespace0(span)?;
+    let doc_comment = comment.map(|DocComment(comment)| comment);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+
+    parse_enum_after_doc_maturity(doc_comment, maturity, span)
 }
 
-impl Enum<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Enum<'_>, ParseError> {
-        let (span, comment) = whitespace0(span)?;
-        let doc_comment = comment.map(|DocComment(comment)| comment);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
-
-        Enum::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
-
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Enum<'c>, ParseError<'b>> {
-        tuple((
-            tag_no_case("enum"),
-            whitespace1,
-            parse_id,
-            whitespace0,
-            tag(":"),
-            whitespace0,
-            parse_id,
-            whitespace0,
-            constant_entries_list,
-        ))
-        .map(|(_, _, id, _, _, _, base_type, _, entries)| Enum {
-            doc_comment,
-            maturity,
-            id,
-            base_type,
-            entries,
-        })
-        .parse(span)
-    }
+fn parse_enum_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Enum, ParseError<'a>> {
+    tuple((
+        tag_no_case("enum"),
+        whitespace1,
+        parse_id,
+        whitespace0,
+        tag(":"),
+        whitespace0,
+        parse_id,
+        whitespace0,
+        constant_entries_list,
+    ))
+    .map(|(_, _, id, _, _, _, base_type, _, entries)| Enum {
+        doc_comment: doc_comment.map(|x| x.into()),
+        maturity,
+        id: id.into(),
+        base_type: base_type.into(),
+        entries,
+    })
+    .parse(span)
 }
 
 /// A set of constant entries that correspont to a bitmap.
@@ -1063,7 +1054,7 @@ pub struct Cluster<'a> {
     pub revision: u64,
 
     pub bitmaps: Vec<Bitmap<'a>>,
-    pub enums: Vec<Enum<'a>>,
+    pub enums: Vec<Enum>,
     pub structs: Vec<Struct<'a>>,
 
     pub events: Vec<Event<'a>>,
@@ -1096,7 +1087,7 @@ impl<'a> Cluster<'a> {
             self.bitmaps.push(b);
             return Some(rest);
         }
-        if let Ok((rest, e)) = Enum::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, e)) = parse_enum_after_doc_maturity(doc_comment, maturity, span) {
             self.enums.push(e);
             return Some(rest);
         }
@@ -1735,8 +1726,8 @@ mod tests {
                 Enum {
                     doc_comment: None,
                     maturity: ApiMaturity::STABLE,
-                    id: "ApplyUpdateActionEnum",
-                    base_type: "enum8",
+                    id: "ApplyUpdateActionEnum".into(),
+                    base_type: "enum8".into(),
                     entries: vec![
                         ConstantEntry { maturity: ApiMaturity::STABLE, id: "kProceed".into(), code: 0 },
                         ConstantEntry { maturity: ApiMaturity::STABLE, id: "kAwaitNextAction".into(), code: 1 },
@@ -2242,7 +2233,7 @@ mod tests {
     #[test]
     fn test_parse_enum() {
         assert_parse_ok(
-            Enum::parse(
+            parse_enum(
                 "
   enum EffectIdentifierEnum : enum8 {
     kBlink = 0;
@@ -2257,8 +2248,8 @@ mod tests {
             Enum {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
-                id: "EffectIdentifierEnum",
-                base_type: "enum8",
+                id: "EffectIdentifierEnum".into(),
+                base_type: "enum8".into(),
                 entries: vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
