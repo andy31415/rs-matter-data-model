@@ -16,6 +16,8 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
+data-model={path = "../data-model"}
+
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 divan = "0.1.4"

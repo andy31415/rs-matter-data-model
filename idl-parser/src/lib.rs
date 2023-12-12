@@ -17,6 +17,8 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
+use data_model::ApiMaturity;
+
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
 //type ParseError<'a> = VerboseError<Span<'a>>;
@@ -78,19 +80,6 @@ where
         }
         data
     }
-}
-
-/// How mature/usable a member of an API is
-///
-/// Most things should be stable, however while spec is developed
-/// we expect PROVISIONAL to be set.
-#[derive(Debug, PartialEq, Copy, Clone, Hash, PartialOrd, Eq, Ord, Default)]
-pub enum ApiMaturity {
-    #[default]
-    STABLE,
-    PROVISIONAL,
-    INTERNAL,
-    DEPRECATED,
 }
 
 /// A parser that CANNOT fail
