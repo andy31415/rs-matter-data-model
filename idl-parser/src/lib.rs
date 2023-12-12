@@ -90,7 +90,8 @@ where
 /// Examples:
 ///
 /// ```
-/// use rs_matter_idl_parser::{api_maturity, ApiMaturity};
+/// use data_model::ApiMaturity;
+/// use rs_matter_idl_parser::api_maturity;
 ///
 /// assert_eq!(
 ///    api_maturity("123".into()),
@@ -345,14 +346,14 @@ pub fn parse_id(span: Span) -> IResult<Span, &str, ParseError> {
 ///
 /// ```
 /// use data_model::{ConstantEntry, ApiMaturity};
-/// use rs_matter_idl_parser::constant_entry
+/// use rs_matter_idl_parser::constant_entry;
 ///
 /// let parsed = constant_entry("provisional kConstant = 0x123 ;".into()).expect("valid");
 /// assert_eq!(parsed.0.fragment().to_string(), "");
 /// assert_eq!(
 ///         parsed.1,
 ///         ConstantEntry {
-///             id: "kConstant",
+///             id: "kConstant".into(),
 ///             code: 0x123,
 ///             maturity: ApiMaturity::PROVISIONAL
 ///         }
@@ -1743,7 +1744,6 @@ mod tests {
                 ],
                 is_fabric_sensitive: false,
             }],
-            ..Default::default()
         });
     }
 
