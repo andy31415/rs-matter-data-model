@@ -32,3 +32,13 @@ pub struct Enum {
     pub base_type: String,
     pub entries: Vec<ConstantEntry>,
 }
+
+/// A set of constant entries that correspont to a bitmap.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Bitmap {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub id: String,
+    pub base_type: String,
+    pub entries: Vec<ConstantEntry>,
+}

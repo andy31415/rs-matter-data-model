@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, ConstantEntry, Enum};
+use data_model::{ApiMaturity, Bitmap, ConstantEntry, Enum};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -429,50 +429,38 @@ fn parse_enum_after_doc_maturity<'a>(
     .parse(span)
 }
 
-/// A set of constant entries that correspont to a bitmap.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Bitmap<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub id: &'a str,
-    pub base_type: &'a str,
-    pub entries: Vec<ConstantEntry>,
+pub fn parse_bitmap(span: Span) -> IResult<Span, Bitmap, ParseError> {
+    let (span, comment) = whitespace0(span)?;
+    let doc_comment = comment.map(|DocComment(comment)| comment);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+
+    parse_bitmap_after_doc_maturity(doc_comment, maturity, span)
 }
 
-impl Bitmap<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Bitmap<'_>, ParseError> {
-        let (span, comment) = whitespace0(span)?;
-        let doc_comment = comment.map(|DocComment(comment)| comment);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
-
-        Bitmap::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
-
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Bitmap<'c>, ParseError<'b>> {
-        tuple((
-            tag_no_case("bitmap"),
-            whitespace1,
-            parse_id,
-            whitespace0,
-            tag(":"),
-            whitespace0,
-            parse_id,
-            whitespace0,
-            constant_entries_list,
-        ))
-        .map(|(_, _, id, _, _, _, base_type, _, entries)| Bitmap {
-            doc_comment,
-            maturity,
-            id,
-            base_type,
-            entries,
-        })
-        .parse(span)
-    }
+pub fn parse_bitmap_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Bitmap, ParseError<'a>> {
+    tuple((
+        tag_no_case("bitmap"),
+        whitespace1,
+        parse_id,
+        whitespace0,
+        tag(":"),
+        whitespace0,
+        parse_id,
+        whitespace0,
+        constant_entries_list,
+    ))
+    .map(|(_, _, id, _, _, _, base_type, _, entries)| Bitmap {
+        doc_comment: doc_comment.map(|c| c.into()),
+        maturity,
+        id: id.into(),
+        base_type: base_type.into(),
+        entries,
+    })
+    .parse(span)
 }
 
 /// A generic type such as integers, strings, enums etc.
@@ -1053,7 +1041,7 @@ pub struct Cluster<'a> {
     pub code: u64,
     pub revision: u64,
 
-    pub bitmaps: Vec<Bitmap<'a>>,
+    pub bitmaps: Vec<Bitmap>,
     pub enums: Vec<Enum>,
     pub structs: Vec<Struct<'a>>,
 
@@ -1083,7 +1071,7 @@ impl<'a> Cluster<'a> {
             return Some(rest);
         }
 
-        if let Ok((rest, b)) = Bitmap::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, b)) = parse_bitmap_after_doc_maturity(doc_comment, maturity, span) {
             self.bitmaps.push(b);
             return Some(rest);
         }
@@ -1774,8 +1762,8 @@ mod tests {
             bitmaps: vec![Bitmap {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
-                id: "Feature",
-                base_type: "bitmap32",
+                id: "Feature".into(),
+                base_type: "bitmap32".into(),
                 entries: vec![ConstantEntry { maturity: ApiMaturity::STABLE, id: "kCalendarFormat".into(), code: 1 }] }],
             events: vec![Event {
                 doc_comment: None,
@@ -2289,7 +2277,7 @@ mod tests {
     #[test]
     fn test_parse_bitmap() {
         assert_eq!(
-            Bitmap::parse(
+            parse_bitmap(
                 "
   /** Test feature bitmap */
   bitmap Feature : bitmap32 {
@@ -2303,10 +2291,10 @@ mod tests {
             .expect("valid value")
             .1,
             Bitmap {
-                doc_comment: Some(" Test feature bitmap "),
+                doc_comment: Some(" Test feature bitmap ".into()),
                 maturity: ApiMaturity::STABLE,
-                id: "Feature",
-                base_type: "bitmap32",
+                id: "Feature".into(),
+                base_type: "bitmap32".into(),
                 entries: vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
