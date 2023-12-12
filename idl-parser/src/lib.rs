@@ -18,7 +18,7 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
-    AccessPrivilege, ApiMaturity, Bitmap, Command, ConstantEntry, DataType, Enum, Event,
+    AccessPrivilege, ApiMaturity, Attribute, Bitmap, Command, ConstantEntry, DataType, Enum, Event,
     EventPriority, Field, Struct, StructField, StructType,
 };
 
@@ -765,34 +765,6 @@ pub fn parse_command_after_doc_maturity<'a>(
     .parse(span)
 }
 
-/// An attribute within a cluster
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Attribute<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub field: StructField,
-    pub read_acl: AccessPrivilege,
-    pub write_acl: AccessPrivilege,
-    pub is_read_only: bool,
-    pub is_no_subscribe: bool,
-    pub is_timed_write: bool,
-}
-
-impl<'a> Default for Attribute<'a> {
-    fn default() -> Self {
-        Self {
-            doc_comment: None,
-            maturity: ApiMaturity::STABLE,
-            field: Default::default(),
-            read_acl: AccessPrivilege::View,
-            write_acl: AccessPrivilege::Operate,
-            is_read_only: false,
-            is_no_subscribe: false,
-            is_timed_write: false,
-        }
-    }
-}
-
 // Returns read & write access,
 // CANNOT fail (returns defaults if it fails)
 fn attribute_access(span: Span) -> IResult<Span, (AccessPrivilege, AccessPrivilege), ParseError> {
@@ -837,49 +809,47 @@ fn attribute_access(span: Span) -> IResult<Span, (AccessPrivilege, AccessPrivile
     Ok((span, (read_acl, write_acl)))
 }
 
-impl Attribute<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Attribute<'_>, ParseError> {
-        let (span, doc_comment) = whitespace0.parse(span)?;
-        let doc_comment = doc_comment.map(|DocComment(s)| s);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+pub fn parse_attribute(span: Span) -> IResult<Span, Attribute, ParseError> {
+    let (span, doc_comment) = whitespace0.parse(span)?;
+    let doc_comment = doc_comment.map(|DocComment(s)| s);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
 
-        Self::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
+    parse_attribute_after_doc_maturity(doc_comment, maturity, span)
+}
 
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Attribute<'c>, ParseError<'b>> {
-        let (span, qualities) = tags_set!(span, "readonly", "nosubscribe", "timedwrite");
-        let is_read_only = qualities.contains("readonly");
-        let is_no_subscribe = qualities.contains("nosubscribe");
-        let is_timed_write = qualities.contains("timedwrite");
+pub fn parse_attribute_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Attribute, ParseError<'a>> {
+    let (span, qualities) = tags_set!(span, "readonly", "nosubscribe", "timedwrite");
+    let is_read_only = qualities.contains("readonly");
+    let is_no_subscribe = qualities.contains("nosubscribe");
+    let is_timed_write = qualities.contains("timedwrite");
 
-        tuple((
-            whitespace0,
-            tag_no_case("attribute"),
-            whitespace1,
-            attribute_access,
-            whitespace0,
-            parse_struct_field,
-            whitespace0,
-            tag(";"),
-        ))
-        .map(
-            |(_, _, _, (read_acl, write_acl), _, field, _, _)| Attribute {
-                doc_comment,
-                maturity,
-                field,
-                read_acl,
-                write_acl,
-                is_read_only,
-                is_no_subscribe,
-                is_timed_write,
-            },
-        )
-        .parse(span)
-    }
+    tuple((
+        whitespace0,
+        tag_no_case("attribute"),
+        whitespace1,
+        attribute_access,
+        whitespace0,
+        parse_struct_field,
+        whitespace0,
+        tag(";"),
+    ))
+    .map(
+        |(_, _, _, (read_acl, write_acl), _, field, _, _)| Attribute {
+            doc_comment: doc_comment.map(|c| c.into()),
+            maturity,
+            field,
+            read_acl,
+            write_acl,
+            is_read_only,
+            is_no_subscribe,
+            is_timed_write,
+        },
+    )
+    .parse(span)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -896,7 +866,7 @@ pub struct Cluster<'a> {
     pub structs: Vec<Struct>,
 
     pub events: Vec<Event>,
-    pub attributes: Vec<Attribute<'a>>,
+    pub attributes: Vec<Attribute>,
     pub commands: Vec<Command>,
 }
 
@@ -933,7 +903,7 @@ impl<'a> Cluster<'a> {
             self.structs.push(s);
             return Some(rest);
         }
-        if let Ok((rest, a)) = Attribute::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, a)) = parse_attribute_after_doc_maturity(doc_comment, maturity, span) {
             self.attributes.push(a);
             return Some(rest);
         }
@@ -1636,7 +1606,7 @@ mod tests {
     #[test]
     fn test_parse_attribute() {
         assert_parse_ok(
-            Attribute::parse("attribute int16u identifyTime = 123;".into()),
+            parse_attribute("attribute int16u identifyTime = 123;".into()),
             Attribute {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
@@ -1659,7 +1629,7 @@ mod tests {
             },
         );
         assert_parse_ok(
-            Attribute::parse(
+            parse_attribute(
                 "
             /**mix of tests*/
             internal timedwrite
@@ -1670,7 +1640,7 @@ mod tests {
                 .into(),
             ),
             Attribute {
-                doc_comment: Some("mix of tests"),
+                doc_comment: Some("mix of tests".into()),
                 maturity: ApiMaturity::INTERNAL,
                 field: StructField {
                     field: Field {

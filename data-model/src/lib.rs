@@ -187,3 +187,31 @@ impl Default for Command {
         }
     }
 }
+
+/// An attribute within a cluster
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Attribute {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub field: StructField,
+    pub read_acl: AccessPrivilege,
+    pub write_acl: AccessPrivilege,
+    pub is_read_only: bool,
+    pub is_no_subscribe: bool,
+    pub is_timed_write: bool,
+}
+
+impl<'a> Default for Attribute {
+    fn default() -> Self {
+        Self {
+            doc_comment: None,
+            maturity: ApiMaturity::STABLE,
+            field: Default::default(),
+            read_acl: AccessPrivilege::View,
+            write_acl: AccessPrivilege::Operate,
+            is_read_only: false,
+            is_no_subscribe: false,
+            is_timed_write: false,
+        }
+    }
+}
