@@ -10,3 +10,15 @@ pub enum ApiMaturity {
     INTERNAL,
     DEPRECATED,
 }
+
+/// A named numeric value.
+///
+/// A value that has a name (e.g. enumeration or bitmap constant).
+/// May also have an associated maturity that defaults to STABLE
+/// while parsing.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ConstantEntry {
+    pub maturity: ApiMaturity,
+    pub id: String,
+    pub code: u64,
+}

@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::ApiMaturity;
+use data_model::{ApiMaturity, ConstantEntry};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -337,65 +337,53 @@ pub fn parse_id(span: Span) -> IResult<Span, &str, ParseError> {
     )(span)
 }
 
-/// A named numeric value.
-///
-/// A value that has a name (e.g. enumeration or bitmap constant).
-/// May also have an associated maturity that defaults to STABLE
-/// while parsing.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ConstantEntry<'a> {
-    pub maturity: ApiMaturity,
-    pub id: &'a str,
-    pub code: u64,
-}
 
-impl<'a> ConstantEntry<'a> {
-    /// Parses a IDL representation of a constant entry.
-    ///
-    /// Consumes any whitespace BEFORE the entry.
-    ///
-    /// Examples:
-    ///
-    /// ```
-    /// use rs_matter_idl_parser::{ConstantEntry, ApiMaturity};
-    ///
-    /// let parsed = ConstantEntry::parse("provisional kConstant = 0x123 ;".into()).expect("valid");
-    /// assert_eq!(parsed.0.fragment().to_string(), "");
-    /// assert_eq!(
-    ///         parsed.1,
-    ///         ConstantEntry {
-    ///             id: "kConstant",
-    ///             code: 0x123,
-    ///             maturity: ApiMaturity::PROVISIONAL
-    ///         }
-    /// );
-    /// ```
-    pub fn parse(span: Span) -> IResult<Span, ConstantEntry<'_>, ParseError> {
-        tuple((
-            whitespace0,
-            api_maturity,
-            whitespace0,
-            parse_id,
-            whitespace0,
-            tag("="),
-            whitespace0,
-            positive_integer,
-            whitespace0,
-            tag(";"),
-        ))
-        .map(|(_, maturity, _, id, _, _, _, code, _, _)| ConstantEntry { maturity, id, code })
-        .parse(span)
-    }
+/// Parses a IDL representation of a constant entry.
+///
+/// Consumes any whitespace BEFORE the entry.
+///
+/// Examples:
+///
+/// ```
+/// use data_model::{ConstantEntry, ApiMaturity};
+/// use rs_matter_idl_parser::constant_entry
+///
+/// let parsed = constant_entry("provisional kConstant = 0x123 ;".into()).expect("valid");
+/// assert_eq!(parsed.0.fragment().to_string(), "");
+/// assert_eq!(
+///         parsed.1,
+///         ConstantEntry {
+///             id: "kConstant",
+///             code: 0x123,
+///             maturity: ApiMaturity::PROVISIONAL
+///         }
+/// );
+/// ```
+pub fn constant_entry(span: Span) -> IResult<Span, ConstantEntry, ParseError> {
+    tuple((
+        whitespace0,
+        api_maturity,
+        whitespace0,
+        parse_id,
+        whitespace0,
+        tag("="),
+        whitespace0,
+        positive_integer,
+        whitespace0,
+        tag(";"),
+    ))
+    .map(|(_, maturity, _, id, _, _, _, code, _, _)| ConstantEntry { maturity, id: id.into(), code })
+    .parse(span)
 }
 
 /// Parses a list of constant entries, delimeted by "{" "}".
 ///
 /// Consumes the '{' '}' as well as any internal whitespace in them
-fn constant_entries_list(span: Span) -> IResult<Span, Vec<ConstantEntry<'_>>, ParseError> {
+fn constant_entries_list(span: Span) -> IResult<Span, Vec<ConstantEntry>, ParseError> {
     delimited(
         tag("{"),
         tuple((
-            many0(tuple((whitespace0, ConstantEntry::parse)).map(|(_, v)| v)),
+            many0(tuple((whitespace0, constant_entry)).map(|(_, v)| v)),
             whitespace0,
         )),
         tag("}"),
@@ -411,7 +399,7 @@ pub struct Enum<'a> {
     pub maturity: ApiMaturity,
     pub id: &'a str,
     pub base_type: &'a str,
-    pub entries: Vec<ConstantEntry<'a>>,
+    pub entries: Vec<ConstantEntry>,
 }
 
 impl Enum<'_> {
@@ -457,7 +445,7 @@ pub struct Bitmap<'a> {
     pub maturity: ApiMaturity,
     pub id: &'a str,
     pub base_type: &'a str,
-    pub entries: Vec<ConstantEntry<'a>>,
+    pub entries: Vec<ConstantEntry>,
 }
 
 impl Bitmap<'_> {
@@ -1750,9 +1738,9 @@ mod tests {
                     id: "ApplyUpdateActionEnum",
                     base_type: "enum8",
                     entries: vec![
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kProceed", code: 0 },
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kAwaitNextAction", code: 1 },
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kDiscontinue", code: 2 },
+                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kProceed".into(), code: 0 },
+                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kAwaitNextAction".into(), code: 1 },
+                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kDiscontinue".into(), code: 2 },
                     ]
                },
             ],
@@ -1797,7 +1785,7 @@ mod tests {
                 maturity: ApiMaturity::STABLE,
                 id: "Feature",
                 base_type: "bitmap32",
-                entries: vec![ConstantEntry { maturity: ApiMaturity::STABLE, id: "kCalendarFormat", code: 1 }] }],
+                entries: vec![ConstantEntry { maturity: ApiMaturity::STABLE, id: "kCalendarFormat".into(), code: 1 }] }],
             events: vec![Event {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
@@ -2274,32 +2262,32 @@ mod tests {
                 entries: vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kBlink",
+                        id: "kBlink".into(),
                         code: 0,
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kBreathe",
+                        id: "kBreathe".into(),
                         code: 1,
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kOkay",
+                        id: "kOkay".into(),
                         code: 2,
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kChannelChange",
+                        id: "kChannelChange".into(),
                         code: 11,
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kFinishEffect",
+                        id: "kFinishEffect".into(),
                         code: 254,
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kStopEffect",
+                        id: "kStopEffect".into(),
                         code: 255,
                     },
                 ],
@@ -2331,22 +2319,22 @@ mod tests {
                 entries: vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kSceneNames",
+                        id: "kSceneNames".into(),
                         code: 0x01
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kExplicit",
+                        id: "kExplicit".into(),
                         code: 0x02
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kTableSize",
+                        id: "kTableSize".into(),
                         code: 0x04
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::PROVISIONAL,
-                        id: "kFabricScenes",
+                        id: "kFabricScenes".into(),
                         code: 0x08
                     },
                 ]
@@ -2369,12 +2357,12 @@ mod tests {
                 vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "a",
+                        id: "a".into(),
                         code: 1
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::PROVISIONAL,
-                        id: "b",
+                        id: "b".into(),
                         code: 2
                     },
                 ]
@@ -2394,12 +2382,12 @@ mod tests {
                 vec![
                     ConstantEntry {
                         maturity: ApiMaturity::STABLE,
-                        id: "kConstantOne",
+                        id: "kConstantOne".into(),
                         code: 123
                     },
                     ConstantEntry {
                         maturity: ApiMaturity::INTERNAL,
-                        id: "kAnother",
+                        id: "kAnother".into(),
                         code: 0x23abc
                     },
                 ]
@@ -2604,17 +2592,17 @@ mod tests {
 
     #[test]
     fn test_parse_constant_entry() {
-        assert!(ConstantEntry::parse("abc".into()).is_err());
-        assert!(ConstantEntry::parse("a = 1".into()).is_err());
-        assert!(ConstantEntry::parse("a = ;".into()).is_err());
-        assert!(ConstantEntry::parse("provisional a = ;".into()).is_err());
+        assert!(constant_entry("abc".into()).is_err());
+        assert!(constant_entry("a = 1".into()).is_err());
+        assert!(constant_entry("a = ;".into()).is_err());
+        assert!(constant_entry("provisional a = ;".into()).is_err());
 
         assert_eq!(
-            remove_loc(ConstantEntry::parse("a=0;".into())),
+            remove_loc(constant_entry("a=0;".into())),
             Ok((
                 "".into(),
                 ConstantEntry {
-                    id: "a",
+                    id: "a".into(),
                     code: 0,
                     maturity: ApiMaturity::STABLE
                 }
@@ -2622,11 +2610,11 @@ mod tests {
         );
 
         assert_eq!(
-            remove_loc(ConstantEntry::parse("   provisional xyz = 0x123 ;".into())),
+            remove_loc(constant_entry("   provisional xyz = 0x123 ;".into())),
             Ok((
                 "".into(),
                 ConstantEntry {
-                    id: "xyz",
+                    id: "xyz".into(),
                     code: 0x123,
                     maturity: ApiMaturity::PROVISIONAL
                 }
@@ -2634,18 +2622,18 @@ mod tests {
         );
 
         assert_eq!(
-            remove_loc(ConstantEntry::parse("InterNAL kTest = 0xabc ;".into())),
+            remove_loc(constant_entry("InterNAL kTest = 0xabc ;".into())),
             Ok((
                 "".into(),
                 ConstantEntry {
-                    id: "kTest",
+                    id: "kTest".into(),
                     code: 0xABC,
                     maturity: ApiMaturity::INTERNAL
                 }
             ))
         );
         assert_eq!(
-            remove_loc(ConstantEntry::parse(
+            remove_loc(constant_entry(
                 "
                 internal
                 kTest\t
@@ -2658,14 +2646,14 @@ mod tests {
             Ok((
                 "".into(),
                 ConstantEntry {
-                    id: "kTest",
+                    id: "kTest".into(),
                     code: 0xABC,
                     maturity: ApiMaturity::INTERNAL
                 }
             ))
         );
         assert_eq!(
-            remove_loc(ConstantEntry::parse(
+            remove_loc(constant_entry(
                 "
             /*comment*/ internal
             //test
@@ -2679,7 +2667,7 @@ mod tests {
             Ok((
                 "".into(),
                 ConstantEntry {
-                    id: "kTest",
+                    id: "kTest".into(),
                     code: 0xABC,
                     maturity: ApiMaturity::INTERNAL
                 }
