@@ -157,3 +157,33 @@ pub struct Event {
     pub fields: Vec<StructField>,
     pub is_fabric_sensitive: bool,
 }
+
+/// A command that can be executed on a cluster
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Command {
+    pub doc_comment: Option<String>,
+    pub maturity: ApiMaturity,
+    pub access: AccessPrivilege, // invoke access privilege
+    pub id: String,
+    pub input: Option<String>,
+    pub output: String,
+    pub code: u64,
+    pub is_timed: bool,
+    pub is_fabric_scoped: bool,
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Self {
+            access: AccessPrivilege::Operate,
+            doc_comment: None,
+            maturity: ApiMaturity::STABLE,
+            id: "".into(),
+            input: None,
+            output: "DefaultSuccess".into(),
+            code: 0,
+            is_timed: false,
+            is_fabric_scoped: false,
+        }
+    }
+}

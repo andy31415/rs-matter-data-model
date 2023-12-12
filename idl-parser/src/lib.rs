@@ -18,8 +18,8 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
-    AccessPrivilege, ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Event, EventPriority,
-    Field, Struct, StructField, StructType,
+    AccessPrivilege, ApiMaturity, Bitmap, Command, ConstantEntry, DataType, Enum, Event,
+    EventPriority, Field, Struct, StructField, StructType,
 };
 
 // easier to type and not move str around
@@ -702,99 +702,67 @@ fn parse_event_after_doc_maturity<'a>(
     .parse(span)
 }
 
-/// A command that can be executed on a cluster
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Command<'a> {
-    pub doc_comment: Option<&'a str>,
-    pub maturity: ApiMaturity,
-    pub access: AccessPrivilege, // invoke access privilege
-    pub id: &'a str,
-    pub input: Option<&'a str>,
-    pub output: &'a str,
-    pub code: u64,
-    pub is_timed: bool,
-    pub is_fabric_scoped: bool,
+pub fn parse_command(span: Span) -> IResult<Span, Command, ParseError> {
+    let (span, doc_comment) = whitespace0.parse(span)?;
+    let doc_comment = doc_comment.map(|DocComment(s)| s);
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+
+    parse_command_after_doc_maturity(doc_comment, maturity, span)
 }
 
-impl Default for Command<'_> {
-    fn default() -> Self {
-        Self {
-            access: AccessPrivilege::Operate,
-            doc_comment: None,
-            maturity: ApiMaturity::STABLE,
-            id: "",
-            input: None,
-            output: "DefaultSuccess",
-            code: 0,
-            is_timed: false,
-            is_fabric_scoped: false,
-        }
-    }
-}
+pub fn parse_command_after_doc_maturity<'a>(
+    doc_comment: Option<&str>,
+    maturity: ApiMaturity,
+    span: Span<'a>,
+) -> IResult<Span<'a>, Command, ParseError<'a>> {
+    let (span, qualities) = tags_set!(span, "timed", "fabric");
+    let is_timed = qualities.contains("timed");
+    let is_fabric_scoped = qualities.contains("fabric");
 
-impl Command<'_> {
-    pub fn parse(span: Span) -> IResult<Span, Command<'_>, ParseError> {
-        let (span, doc_comment) = whitespace0.parse(span)?;
-        let doc_comment = doc_comment.map(|DocComment(s)| s);
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
-
-        Self::parse_after_doc_maturity(doc_comment, maturity, span)
-    }
-
-    pub fn parse_after_doc_maturity<'a: 'c, 'b: 'c, 'c>(
-        doc_comment: Option<&'a str>,
-        maturity: ApiMaturity,
-        span: Span<'b>,
-    ) -> IResult<Span<'b>, Command<'c>, ParseError<'b>> {
-        let (span, qualities) = tags_set!(span, "timed", "fabric");
-        let is_timed = qualities.contains("timed");
-        let is_fabric_scoped = qualities.contains("fabric");
-
-        let access_parser = opt(tuple((
-            tuple((
-                whitespace0,
-                tag_no_case("access"),
-                whitespace0,
-                tag("("),
-                whitespace0,
-                tag_no_case("invoke"),
-                tag(":"),
-                whitespace0,
-            )),
-            access_privilege,
-            tuple((whitespace0, tag(")"))),
-        ))
-        .map(|(_, p, _)| p))
-        .map(|opt_access| opt_access.unwrap_or(AccessPrivilege::Operate));
-
+    let access_parser = opt(tuple((
         tuple((
-            tuple((whitespace0, tag_no_case("command"))),
-            access_parser,
             whitespace0,
-            parse_id,
-            tuple((whitespace0, tag("("), whitespace0)),
-            opt(parse_id),
-            tuple((whitespace0, tag(")"), whitespace0, tag(":"), whitespace0)),
-            parse_id,
-            tuple((whitespace0, tag("="), whitespace0)),
-            positive_integer,
-            tuple((whitespace0, tag(";"))),
-        ))
-        .map(
-            |(_, access, _, id, _, input, _, output, _, code, _)| Command {
-                doc_comment,
-                maturity,
-                access,
-                id,
-                input,
-                output,
-                code,
-                is_timed,
-                is_fabric_scoped,
-            },
-        )
-        .parse(span)
-    }
+            tag_no_case("access"),
+            whitespace0,
+            tag("("),
+            whitespace0,
+            tag_no_case("invoke"),
+            tag(":"),
+            whitespace0,
+        )),
+        access_privilege,
+        tuple((whitespace0, tag(")"))),
+    ))
+    .map(|(_, p, _)| p))
+    .map(|opt_access| opt_access.unwrap_or(AccessPrivilege::Operate));
+
+    tuple((
+        tuple((whitespace0, tag_no_case("command"))),
+        access_parser,
+        whitespace0,
+        parse_id,
+        tuple((whitespace0, tag("("), whitespace0)),
+        opt(parse_id),
+        tuple((whitespace0, tag(")"), whitespace0, tag(":"), whitespace0)),
+        parse_id,
+        tuple((whitespace0, tag("="), whitespace0)),
+        positive_integer,
+        tuple((whitespace0, tag(";"))),
+    ))
+    .map(
+        |(_, access, _, id, _, input, _, output, _, code, _)| Command {
+            doc_comment: doc_comment.map(|c| c.into()),
+            maturity,
+            access,
+            id: id.into(),
+            input: input.map(|i| i.into()),
+            output: output.into(),
+            code,
+            is_timed,
+            is_fabric_scoped,
+        },
+    )
+    .parse(span)
 }
 
 /// An attribute within a cluster
@@ -929,7 +897,7 @@ pub struct Cluster<'a> {
 
     pub events: Vec<Event>,
     pub attributes: Vec<Attribute<'a>>,
-    pub commands: Vec<Command<'a>>,
+    pub commands: Vec<Command>,
 }
 
 impl<'a> Cluster<'a> {
@@ -969,7 +937,7 @@ impl<'a> Cluster<'a> {
             self.attributes.push(a);
             return Some(rest);
         }
-        if let Ok((rest, c)) = Command::parse_after_doc_maturity(doc_comment, maturity, span) {
+        if let Ok((rest, c)) = parse_command_after_doc_maturity(doc_comment, maturity, span) {
             self.commands.push(c);
             return Some(rest);
         }
@@ -1618,8 +1586,8 @@ mod tests {
             commands: vec![
                 Command {
                     access: AccessPrivilege::Administer,
-                    id: "CommissioningComplete",
-                    output: "CommissioningCompleteResponse",
+                    id: "CommissioningComplete".into(),
+                    output: "CommissioningCompleteResponse".into(),
                     code: 4,
                     is_fabric_scoped: true,
                     ..Default::default()
@@ -1727,31 +1695,31 @@ mod tests {
     #[test]
     fn test_parse_command() {
         assert_parse_ok(
-            Command::parse("
+            parse_command("
             /** Test with many options. */
             internal fabric timed command access(invoke: administer) GetSetupPIN(GetSetupPINRequest): GetSetupPINResponse = 0;
             ".into()),
             Command {
-                doc_comment: Some(" Test with many options. "),
+                doc_comment: Some(" Test with many options. ".into()),
                 maturity: ApiMaturity::INTERNAL,
                 access: AccessPrivilege::Administer,
-                id: "GetSetupPIN",
-                input: Some("GetSetupPINRequest"),
-                output: "GetSetupPINResponse",
+                id: "GetSetupPIN".into(),
+                input: Some("GetSetupPINRequest".into()),
+                output: "GetSetupPINResponse".into(),
                 code: 0,
                 is_timed: true,
                 is_fabric_scoped: true,
             });
 
         assert_parse_ok(
-            Command::parse("command TestVeryBasic(): DefaultSuccess = 0x123;".into()),
+            parse_command("command TestVeryBasic(): DefaultSuccess = 0x123;".into()),
             Command {
                 doc_comment: None,
                 maturity: ApiMaturity::STABLE,
                 access: AccessPrivilege::Operate,
-                id: "TestVeryBasic",
+                id: "TestVeryBasic".into(),
                 input: None,
-                output: "DefaultSuccess",
+                output: "DefaultSuccess".into(),
                 code: 0x123,
                 is_timed: false,
                 is_fabric_scoped: false,
