@@ -17,7 +17,7 @@ use nom_supreme::ParserExt;
 use thiserror::Error;
 use tracing::warn;
 
-use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field};
+use data_model::{ApiMaturity, Bitmap, ConstantEntry, DataType, Enum, Field, StructField};
 
 // easier to type and not move str around
 type Span<'a> = LocatedSpan<&'a str>;
@@ -531,41 +531,26 @@ macro_rules! tags_set {
     };
 }
 
-/// Represents a field entry within a struct.
-///
-/// Specifically this adds structure specific information
-/// such as API maturity, optional/nullable/fabric_sensitive
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct StructField {
-    pub field: Field,
-    pub maturity: ApiMaturity,
-    pub is_optional: bool,
-    pub is_nullable: bool,
-    pub is_fabric_sensitive: bool,
-}
+pub fn parse_struct_field(span: Span) -> IResult<Span, StructField, ParseError> {
+    let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
+    let (span, attributes) = tags_set!(span, "optional", "nullable", "fabric_sensitive");
 
-impl StructField {
-    pub fn parse(span: Span) -> IResult<Span, StructField, ParseError> {
-        let (span, maturity) = delimited(whitespace0, api_maturity, whitespace0).parse(span)?;
-        let (span, attributes) = tags_set!(span, "optional", "nullable", "fabric_sensitive");
+    let is_optional = attributes.contains("optional");
+    let is_nullable = attributes.contains("nullable");
+    let is_fabric_sensitive = attributes.contains("fabric_sensitive");
 
-        let is_optional = attributes.contains("optional");
-        let is_nullable = attributes.contains("nullable");
-        let is_fabric_sensitive = attributes.contains("fabric_sensitive");
+    let (span, field) = parse_field(span)?;
 
-        let (span, field) = parse_field(span)?;
-
-        Ok((
-            span,
-            StructField {
-                field,
-                maturity,
-                is_optional,
-                is_nullable,
-                is_fabric_sensitive,
-            },
-        ))
-    }
+    Ok((
+        span,
+        StructField {
+            field,
+            maturity,
+            is_optional,
+            is_nullable,
+            is_fabric_sensitive,
+        },
+    ))
 }
 
 fn struct_fields(span: Span) -> IResult<Span, Vec<StructField>, ParseError> {
@@ -573,7 +558,7 @@ fn struct_fields(span: Span) -> IResult<Span, Vec<StructField>, ParseError> {
         tag("{"),
         many0(delimited(
             whitespace0,
-            StructField::parse,
+            parse_struct_field,
             tuple((whitespace0, tag(";"))),
         )),
         tuple((whitespace0, tag("}"))),
@@ -964,7 +949,7 @@ impl Attribute<'_> {
             whitespace1,
             attribute_access,
             whitespace0,
-            StructField::parse,
+            parse_struct_field,
             whitespace0,
             tag(";"),
         ))
@@ -2088,7 +2073,7 @@ mod tests {
     #[test]
     fn test_parse_struct_field() {
         assert_parse_ok(
-            StructField::parse("int8u sceneCount = 0;".into()),
+            parse_struct_field("int8u sceneCount = 0;".into()),
             StructField {
                 field: Field {
                     data_type: DataType::scalar("int8u"),
@@ -2102,7 +2087,7 @@ mod tests {
             },
         );
         assert_parse_ok(
-            StructField::parse("fabric_sensitive int8u currentScene = 1;".into()),
+            parse_struct_field("fabric_sensitive int8u currentScene = 1;".into()),
             StructField {
                 field: Field {
                     data_type: DataType::scalar("int8u"),
@@ -2116,7 +2101,7 @@ mod tests {
             },
         );
         assert_parse_ok(
-            StructField::parse(
+            parse_struct_field(
                 "optional nullable ExtensionFieldSet extensionFieldSets[] = 5;".into(),
             ),
             StructField {

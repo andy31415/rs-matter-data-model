@@ -89,3 +89,16 @@ pub struct Field {
     pub id: String,
     pub code: u64,
 }
+
+/// Represents a field entry within a struct.
+///
+/// Specifically this adds structure specific information
+/// such as API maturity, optional/nullable/fabric_sensitive
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct StructField {
+    pub field: Field,
+    pub maturity: ApiMaturity,
+    pub is_optional: bool,
+    pub is_nullable: bool,
+    pub is_fabric_sensitive: bool,
+}
