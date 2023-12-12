@@ -464,40 +464,40 @@ pub fn parse_bitmap_after_doc_maturity<'a>(
     .parse(span)
 }
 
-    pub fn parse_field(span: Span) -> IResult<Span, Field, ParseError> {
-        tuple((
+pub fn parse_field(span: Span) -> IResult<Span, Field, ParseError> {
+    tuple((
+        whitespace0,
+        parse_id,
+        opt(tuple((
             whitespace0,
-            parse_id,
-            opt(tuple((
-                whitespace0,
-                tag("<"),
-                whitespace0,
-                positive_integer,
-                whitespace0,
-                tag(">"),
-            ))
-            .map(|(_, _, _, pos, _, _)| pos)),
-            whitespace1,
-            parse_id,
-            whitespace0,
-            opt(tuple((tag("["), whitespace0, tag("]"), whitespace0))),
-            tag("="),
+            tag("<"),
             whitespace0,
             positive_integer,
+            whitespace0,
+            tag(">"),
         ))
-        .map(
-            |(_, type_name, max_length, _, id, _, list_marker, _, _, code)| Field {
-                data_type: DataType {
-                    name: type_name.into(),
-                    is_list: list_marker.is_some(),
-                    max_length,
-                },
-                id: id.into(),
-                code,
+        .map(|(_, _, _, pos, _, _)| pos)),
+        whitespace1,
+        parse_id,
+        whitespace0,
+        opt(tuple((tag("["), whitespace0, tag("]"), whitespace0))),
+        tag("="),
+        whitespace0,
+        positive_integer,
+    ))
+    .map(
+        |(_, type_name, max_length, _, id, _, list_marker, _, _, code)| Field {
+            data_type: DataType {
+                name: type_name.into(),
+                is_list: list_marker.is_some(),
+                max_length,
             },
-        )
-        .parse(span)
-    }
+            id: id.into(),
+            code,
+        },
+    )
+    .parse(span)
+}
 
 /// Grabs a tag set which are whitespace-separated list of items
 ///

@@ -89,4 +89,3 @@ pub struct Field {
     pub id: String,
     pub code: u64,
 }
-
