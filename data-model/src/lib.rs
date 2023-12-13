@@ -1,3 +1,5 @@
+pub mod endpoint_composition;
+
 /// How mature/usable a member of an API is
 ///
 /// Most things should be stable, however while spec is developed

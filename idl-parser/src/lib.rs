@@ -18,6 +18,7 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
+    endpoint_composition::{AttributeInstantiation, ClusterInstantiation, DeviceType, Endpoint, DefaultAttributeValue, AttributeHandlingType},
     AccessPrivilege, ApiMaturity, Attribute, Bitmap, Cluster, Command, ConstantEntry, DataType,
     Enum, Event, EventPriority, Field, Struct, StructField, StructType,
 };
@@ -943,14 +944,6 @@ pub fn parse_cluster(span: Span) -> IResult<Span, Cluster, ParseError> {
     value(cluster, tuple((whitespace0, tag("}")))).parse(span)
 }
 
-// Represents a specific device type
-#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub struct DeviceType<'a> {
-    pub name: &'a str,
-    pub code: u64,
-    pub version: u64,
-}
-
 /// parse a device type. Does NOT expect preceeding whitespace
 pub fn device_type(span: Span) -> IResult<Span, DeviceType, ParseError> {
     tuple((
@@ -972,19 +965,11 @@ pub fn device_type(span: Span) -> IResult<Span, DeviceType, ParseError> {
             .terminated(tuple((whitespace0, tag(";")))),
     ))
     .map(|(name, code, version)| DeviceType {
-        name,
+        name: name.into(),
         code,
         version,
     })
     .parse(span)
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub enum DefaultAttributeValue {
-    Number(u64),
-    Signed(i64),
-    String(String),
-    Bool(bool),
 }
 
 /// Parses a default attribute value.
@@ -1061,14 +1046,6 @@ pub fn default_attribute_value(span: Span) -> IResult<Span, DefaultAttributeValu
     Ok((span, DefaultAttributeValue::String(result)))
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub enum AttributeHandlingType {
-    #[default]
-    Ram,
-    Callback,
-    Persist,
-}
-
 pub fn attribute_handling_type(span: Span) -> IResult<Span, AttributeHandlingType, ParseError> {
     if let Ok(r) = value(AttributeHandlingType::Ram, tag_no_case::<_, _, ()>("ram")).parse(span) {
         return Ok(r);
@@ -1084,13 +1061,6 @@ pub fn attribute_handling_type(span: Span) -> IResult<Span, AttributeHandlingTyp
     value(AttributeHandlingType::Persist, tag_no_case("persist")).parse(span)
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub struct AttributeInstantiation<'a> {
-    pub handle_type: AttributeHandlingType,
-    pub name: &'a str,
-    pub default: Option<DefaultAttributeValue>,
-}
-
 pub fn attribute_instantiation(span: Span) -> IResult<Span, AttributeInstantiation, ParseError> {
     // TODO: if opt fails here, error reporting does not recurse deep inside the optional
     //       since it is optional and the "terminated" will refuse
@@ -1104,21 +1074,13 @@ pub fn attribute_instantiation(span: Span) -> IResult<Span, AttributeInstantiati
     .terminated(tuple((whitespace0, tag(";"))))
     .map(|(handle_type, name, default)| AttributeInstantiation {
         handle_type,
-        name,
+        name: name.into(),
         default,
     })
     .parse(span)
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub struct ClusterInstantiation<'a> {
-    pub name: &'a str,
-    pub attributes: Vec<AttributeInstantiation<'a>>,
-    pub commands: Vec<&'a str>,
-    pub events: Vec<&'a str>,
-}
-
-pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation<'_>, ParseError> {
+pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation, ParseError> {
     let (mut span, name) = parse_id
         .preceded_by(tuple((
             whitespace0,
@@ -1153,7 +1115,7 @@ pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation<'
                 .terminated(tuple((whitespace0, tag(";"))))
                 .parse(rest),
         ) {
-            commands.push(cmd);
+            commands.push(cmd.to_string());
             rest = tail;
         } else if let Ok((tail, e)) = deepest_error.intercept(
             parse_id
@@ -1166,7 +1128,7 @@ pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation<'
                 .terminated(tuple((whitespace0, tag(";"))))
                 .parse(rest),
         ) {
-            events.push(e);
+            events.push(e.to_string());
             rest = tail;
         } else {
             break;
@@ -1177,7 +1139,7 @@ pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation<'
     let result = deepest_error.intercept(
         value(
             ClusterInstantiation {
-                name,
+                name: name.into(),
                 attributes,
                 commands,
                 events,
@@ -1193,15 +1155,7 @@ pub fn cluster_instantiation(span: Span) -> IResult<Span, ClusterInstantiation<'
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub struct Endpoint<'a> {
-    id: u64,
-    device_types: Vec<DeviceType<'a>>,
-    bindings: Vec<&'a str>,
-    instantiations: Vec<ClusterInstantiation<'a>>,
-}
-
-pub fn endpoint(span: Span) -> IResult<Span, Endpoint<'_>, ParseError> {
+pub fn endpoint(span: Span) -> IResult<Span, Endpoint, ParseError> {
     let (mut span, id) = positive_integer
         .preceded_by(tuple((whitespace0, tag_no_case("endpoint"), whitespace1)))
         .terminated(tuple((whitespace0, tag("{"))))
@@ -1232,7 +1186,7 @@ pub fn endpoint(span: Span) -> IResult<Span, Endpoint<'_>, ParseError> {
                 .terminated(tuple((whitespace0, tag(";"))))
                 .parse(rest),
         ) {
-            bindings.push(b);
+            bindings.push(b.to_string());
             span = tail;
         } else if let Ok((tail, ci)) = deepest_error.intercept(cluster_instantiation(rest)) {
             instantiations.push(ci);
@@ -1260,15 +1214,15 @@ pub fn endpoint(span: Span) -> IResult<Span, Endpoint<'_>, ParseError> {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
-pub struct Idl<'a> {
+pub struct Idl {
     pub clusters: Vec<Cluster>,
-    pub endpoints: Vec<Endpoint<'a>>,
+    pub endpoints: Vec<Endpoint>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-enum InternalIdlParsedData<'a> {
+enum InternalIdlParsedData {
     Cluster(Cluster),
-    Endpoint(Endpoint<'a>),
+    Endpoint(Endpoint),
     Whitespace,
 }
 
@@ -1302,7 +1256,7 @@ impl IdlParsingError {
     }
 }
 
-impl Idl<'_> {
+impl Idl {
     pub fn parse(input: Span) -> Result<Idl, IdlParsingError> {
         let mut idl = Idl::default();
 
@@ -1366,38 +1320,38 @@ mod tests {
     #[case("ram      attribute description default = \"B3\";",
            AttributeInstantiation{
                handle_type: AttributeHandlingType::Ram,
-               name: "description",
+               name: "description".into(),
                default: Some(DefaultAttributeValue::String("B3".into())),
            })]
     #[case("ram      attribute description default = \"with\\\\escape\\n\\t\";",
            AttributeInstantiation{
                handle_type: AttributeHandlingType::Ram,
-               name: "description",
+               name: "description".into(),
                default: Some(DefaultAttributeValue::String("with\\escape\n\t".into())),
            })]
     #[case(
         "ram      attribute batChargeLevel default = 0x123;",
         AttributeInstantiation{
                handle_type: AttributeHandlingType::Ram,
-               name: "batChargeLevel",
+               name: "batChargeLevel".into(),
                default: Some(DefaultAttributeValue::Number(0x123)),
            })]
     #[case(
         "ram      attribute batReplacementNeeded;",
         AttributeInstantiation{
                handle_type: AttributeHandlingType::Ram,
-               name: "batReplacementNeeded",
+               name: "batReplacementNeeded".into(),
                default: None,
          })]
     #[case("callback attribute endpointList;",
            AttributeInstantiation{
                handle_type: AttributeHandlingType::Callback,
-               name: "endpointList",
+               name: "endpointList".into(),
                default: None,
          })]
     fn test_parse_attribute_instantiation(
         #[case] input: &str,
-        #[case] expected: AttributeInstantiation<'_>,
+        #[case] expected: AttributeInstantiation,
     ) {
         assert_parse_ok(attribute_instantiation(input.into()), expected);
     }
@@ -1424,11 +1378,11 @@ mod tests {
     #[rstest]
     #[case(
         "device type ma_rootdevice = 22, version 1;",
-        DeviceType {name: "ma_rootdevice", code: 22, version: 1}
+        DeviceType {name: "ma_rootdevice".into(), code: 22, version: 1}
     )]
     #[case(
         "device type ma_powersource = 17, version 2;",
-            DeviceType {name: "ma_powersource", code: 17, version: 2}
+            DeviceType {name: "ma_powersource".into(), code: 17, version: 2}
     )]
     #[case(
         "dEVICe tYPe
@@ -1436,7 +1390,7 @@ mod tests {
            0xFFF10002, version 0x123  /*test*/
         ;
         ",
-        DeviceType {name: "ma_secondary_network_commissioning", code: 0xfff10002 , version: 0x123}
+        DeviceType {name: "ma_secondary_network_commissioning".into(), code: 0xfff10002 , version: 0x123}
     )]
     fn test_parse_device_type(#[case] input: &str, #[case] expected: DeviceType) {
         assert_parse_ok(device_type(input.into()), expected);
@@ -1461,21 +1415,21 @@ mod tests {
                 .into(),
             ),
             ClusterInstantiation {
-                name: "Test",
+                name: "Test".into(),
                 attributes: vec![
                     AttributeInstantiation {
                         handle_type: AttributeHandlingType::Callback,
-                        name: "attributeList",
+                        name: "attributeList".into(),
                         default: None,
                     },
                     AttributeInstantiation {
                         handle_type: AttributeHandlingType::Ram,
-                        name: "clusterRevision",
+                        name: "clusterRevision".into(),
                         default: Some(DefaultAttributeValue::Number(2)),
                     },
                 ],
-                commands: vec!["TestEventTrigger", "TimeSnapshot"],
-                events: vec!["Foo", "Bar"],
+                commands: vec!["TestEventTrigger".into(), "TimeSnapshot".into()],
+                events: vec!["Foo".into(), "Bar".into()],
             },
         );
     }
