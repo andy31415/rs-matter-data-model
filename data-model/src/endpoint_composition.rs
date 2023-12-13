@@ -1,5 +1,5 @@
 /// Represents a specific device type
-/// 
+///
 /// API generally just reports standarde `code` values and their
 /// `version`. `name` is a human-friendly readable value.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
@@ -23,15 +23,15 @@ pub enum DefaultAttributeValue {
 pub enum AttributeHandlingType {
     /// Stored in RAM, may be lost at reboot
     #[default]
-    Ram,      
+    Ram,
     /// Cluster provides custom code to handle read/writes
-    Callback, 
+    Callback,
     /// Stored in RAM and persisted in NVM
     Persist,
 }
 
 /// Describes an attribute made available on a server
-/// 
+///
 /// Name should be looked up in the corresponding cluster definition
 /// to figure out actual type/sizing and other information.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
@@ -42,7 +42,7 @@ pub struct AttributeInstantiation {
 }
 
 /// A cluster instantiated on a specific endpoint
-/// 
+///
 /// Data is generally string-typed and the actual types should be
 /// looked up in the cluster definition if required.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
