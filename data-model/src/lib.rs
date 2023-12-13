@@ -3,6 +3,7 @@
 /// Most things should be stable, however while spec is developed
 /// we expect PROVISIONAL to be set.
 #[derive(Debug, PartialEq, Copy, Clone, Hash, PartialOrd, Eq, Ord, Default)]
+#[non_exhaustive]
 pub enum ApiMaturity {
     #[default]
     STABLE,
@@ -55,24 +56,24 @@ pub struct DataType {
 }
 
 impl DataType {
-    pub fn scalar(name: impl Into<String>) -> DataType {
-        DataType {
+    pub fn scalar<T: Into<String>>(name: T) -> Self {
+        Self {
             name: name.into(),
             is_list: false,
             max_length: None,
         }
     }
 
-    pub fn list_of(name: impl Into<String>) -> DataType {
-        DataType {
+    pub fn list_of<T: Into<String>>(name: T) -> Self {
+        Self {
             name: name.into(),
             is_list: true,
             max_length: None,
         }
     }
 
-    pub fn scalar_of_size(name: impl Into<String>, max_length: u64) -> DataType {
-        DataType {
+    pub fn scalar_of_size<T: Into<String>>(name: T, max_length: u64) -> Self {
+        Self {
             name: name.into(),
             is_list: false,
             max_length: Some(max_length),
@@ -93,7 +94,7 @@ pub struct Field {
 /// Represents a field entry within a struct.
 ///
 /// Specifically this adds structure specific information
-/// such as API maturity, optional/nullable/fabric_sensitive
+/// such as API maturity, optional, nullable or fabric sensitive
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct StructField {
     pub field: Field,
@@ -202,11 +203,12 @@ pub struct Attribute {
 }
 
 impl Default for Attribute {
+    #[inline]
     fn default() -> Self {
         Self {
             doc_comment: None,
             maturity: ApiMaturity::STABLE,
-            field: Default::default(),
+            field: StructField::default(),
             read_acl: AccessPrivilege::View,
             write_acl: AccessPrivilege::Operate,
             is_read_only: false,

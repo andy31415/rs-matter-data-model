@@ -1405,7 +1405,7 @@ mod tests {
     #[rstest]
     #[case("default = 1", DefaultAttributeValue::Number(1))]
     #[case("default = 0x1234abcd", DefaultAttributeValue::Number(0x1234abcd))]
-    #[case(r#"default = """#, DefaultAttributeValue::String("".into()))]
+    #[case(r#"default = """#, DefaultAttributeValue::String(String::new()))]
     #[case("default = \"B3\"", DefaultAttributeValue::String("B3".into()))]
     #[case(r#"default = "test""#, DefaultAttributeValue::String("test".into()))]
     #[case(r#"default = "test\\test""#, DefaultAttributeValue::String("test\\test".into()))]
