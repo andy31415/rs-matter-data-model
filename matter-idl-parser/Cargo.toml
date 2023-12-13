@@ -1,5 +1,5 @@
 [package]
-name = "rs-matter-idl-parser"
+name = "matter-idl-parser"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,7 +16,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-data-model={path = "../data-model"}
+matter-data-model={path = "../matter-data-model"}
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

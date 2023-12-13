@@ -2,8 +2,8 @@
 resolver = "2"
 
 members = [
-  "data-model",
-  "idl-parser"
+  "matter-data-model",
+  "matter-idl-parser"
 ]
 
 [workspace.dependencies]

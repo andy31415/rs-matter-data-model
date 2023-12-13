@@ -1,7 +1,7 @@
 use std::fs;
 
 use clap::Parser;
-use rs_matter_idl_parser::Idl;
+use matter_idl_parser::Idl;
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::prelude::*;
