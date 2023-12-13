@@ -32,7 +32,7 @@ case $1 in
       ;;
   grcov)
       echo "GRCOV coverage"
-      gcode_coverage
+      gcov_coverage
       echo "output in target/coverage/index.html"
       ;;
   tarpaulin)
