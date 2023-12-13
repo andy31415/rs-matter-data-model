@@ -1353,11 +1353,11 @@ mod tests {
                name: "description",
                default: Some(DefaultAttributeValue::String("B3".into())),
            })]
-    #[case("ram      attribute description default = \"with\\\\escape\\n\";",
+    #[case("ram      attribute description default = \"with\\\\escape\\n\\t\";",
            AttributeInstantiation{
                handle_type: AttributeHandlingType::Ram,
                name: "description",
-               default: Some(DefaultAttributeValue::String("with\\escape\n".into())),
+               default: Some(DefaultAttributeValue::String("with\\escape\n\t".into())),
            })]
     #[case(
         "ram      attribute batChargeLevel default = 0x123;",
