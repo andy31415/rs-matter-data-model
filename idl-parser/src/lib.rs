@@ -1346,7 +1346,7 @@ mod tests {
         let actual = parsed.expect("Parse should have succeeded").1;
         assert_eq!(actual, expected);
     }
-    
+
     #[test]
     fn parse_idl_error() {
         assert!(Idl::parse("/* Invalid IDL */ cluster X = 1 { invalid }".into()).is_err());
@@ -1357,12 +1357,11 @@ mod tests {
         let r = Idl::parse(include_str!("./test_input1.matter").into());
         assert!(r.is_ok());
         let idl = r.unwrap();
-        
+
         assert_eq!(idl.clusters.len(), 1);
         assert_eq!(idl.clusters.get(0).expect("cluster").id, "Identify")
     }
 
-    
     #[rstest]
     #[case("ram      attribute description default = \"B3\";",
            AttributeInstantiation{
@@ -2352,7 +2351,10 @@ mod tests {
     fn test_whitespace_group0() {
         assert_eq!(remove_loc(whitespace0("a".into())), Ok(("a".into(), None)));
         assert_eq!(remove_loc(whitespace0("".into())), Ok(("".into(), None)));
-        assert_eq!(remove_loc(whitespace0("/ only slash".into())), Ok(("/ only slash".into(), None)));
+        assert_eq!(
+            remove_loc(whitespace0("/ only slash".into())),
+            Ok(("/ only slash".into(), None))
+        );
         assert_eq!(
             remove_loc(whitespace0("//test\n/** Comment! */123".into())),
             Ok(("123".into(), Some(DocComment(" Comment! "))))
