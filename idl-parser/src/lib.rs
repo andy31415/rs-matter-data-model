@@ -1353,6 +1353,12 @@ mod tests {
                name: "description",
                default: Some(DefaultAttributeValue::String("B3".into())),
            })]
+    #[case("ram      attribute description default = \"with\\\\escape\\n\";",
+           AttributeInstantiation{
+               handle_type: AttributeHandlingType::Ram,
+               name: "description",
+               default: Some(DefaultAttributeValue::String("with\\escape\n".into())),
+           })]
     #[case(
         "ram      attribute batChargeLevel default = 0x123;",
         AttributeInstantiation{
@@ -2013,7 +2019,7 @@ mod tests {
     fn test_parse_enum() {
         assert_parse_ok(
             parse_enum(
-                "
+                "/** Documented */
   enum EffectIdentifierEnum : enum8 {
     kBlink = 0;
     kBreathe = 1;
@@ -2025,7 +2031,7 @@ mod tests {
                 .into(),
             ),
             Enum {
-                doc_comment: None,
+                doc_comment: Some(" Documented ".into()),
                 maturity: ApiMaturity::STABLE,
                 id: "EffectIdentifierEnum".into(),
                 base_type: "enum8".into(),
@@ -2329,6 +2335,7 @@ mod tests {
     fn test_whitespace_group0() {
         assert_eq!(remove_loc(whitespace0("a".into())), Ok(("a".into(), None)));
         assert_eq!(remove_loc(whitespace0("".into())), Ok(("".into(), None)));
+        assert_eq!(remove_loc(whitespace0("/ only slash".into())), Ok(("/ only slash".into(), None)));
         assert_eq!(
             remove_loc(whitespace0("//test\n/** Comment! */123".into())),
             Ok(("123".into(), Some(DocComment(" Comment! "))))
