@@ -1346,6 +1346,23 @@ mod tests {
         let actual = parsed.expect("Parse should have succeeded").1;
         assert_eq!(actual, expected);
     }
+    
+    #[test]
+    fn parse_idl_error() {
+        assert!(Idl::parse("/* Invalid IDL */ cluster X = 1 { invalid }".into()).is_err());
+    }
+
+    #[test]
+    fn parse_idl_success() {
+        let r = Idl::parse(include_str!("./test_input1.matter").into());
+        assert!(r.is_ok());
+        let idl = r.unwrap();
+        
+        assert_eq!(idl.clusters.len(), 1);
+        assert_eq!(idl.clusters.get(0).expect("cluster").id, "Identify")
+    }
+
+    
     #[rstest]
     #[case("ram      attribute description default = \"B3\";",
            AttributeInstantiation{
