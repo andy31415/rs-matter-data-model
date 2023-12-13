@@ -220,6 +220,11 @@ impl Default for Attribute {
     }
 }
 
+/// A cluster contains all underlying types, commands, events and attributes
+/// corresponding to a Matter cluster.
+///
+/// `id` is generally a human-readable (and code-gen usable as well) name
+/// while binary API will generally use `code`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Cluster {
     pub doc_comment: Option<String>,
