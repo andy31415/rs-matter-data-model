@@ -18,7 +18,10 @@ use thiserror::Error;
 use tracing::warn;
 
 use data_model::{
-    endpoint_composition::{AttributeInstantiation, ClusterInstantiation, DeviceType, Endpoint, DefaultAttributeValue, AttributeHandlingType},
+    endpoint_composition::{
+        AttributeHandlingType, AttributeInstantiation, ClusterInstantiation, DefaultAttributeValue,
+        DeviceType, Endpoint,
+    },
     AccessPrivilege, ApiMaturity, Attribute, Bitmap, Cluster, Command, ConstantEntry, DataType,
     Enum, Event, EventPriority, Field, Struct, StructField, StructType,
 };
