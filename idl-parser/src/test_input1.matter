@@ -69,10 +69,10 @@ endpoint 65534 {
     callback attribute maxNetworks;
     callback attribute networks;
     callback attribute scanMaxTimeSeconds;
-    callback attribute connectMaxTimeSeconds;
+    persist  attribute connectMaxTimeSeconds;
     callback attribute interfaceEnabled;
     callback attribute lastNetworkingStatus;
-    callback attribute lastNetworkID;
+    ram      attribute lastNetworkID;
     callback attribute lastConnectErrorValue;
     callback attribute generatedCommandList;
     callback attribute acceptedCommandList;
