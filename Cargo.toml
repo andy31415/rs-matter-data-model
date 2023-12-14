@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-  "matter-data-model",
+  "matter-data-model", "matter-data-model-codegen",
   "matter-idl-parser"
 ]
 
