@@ -1,5 +1,5 @@
 use matter_data_model::Cluster;
-use proc_macro2::{Ident, Span, TokenStream, Literal};
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 
 pub fn server_side_cluster_generate(cluster: &Cluster) -> TokenStream {
@@ -15,7 +15,6 @@ pub fn server_side_cluster_generate(cluster: &Cluster) -> TokenStream {
         ));
     }
 
-
     quote!(
         mod #cluster_name {
             #[derive(FromRepr)]
@@ -24,7 +23,6 @@ pub fn server_side_cluster_generate(cluster: &Cluster) -> TokenStream {
             }
         }
     )
-    .into()
 }
 
 #[cfg(test)]
