@@ -1,6 +1,6 @@
 use divan::black_box;
-use miette::GraphicalReportHandler;
 use matter_idl_parser::Idl;
+use miette::GraphicalReportHandler;
 
 fn main() {
     // Run registered benchmarks.
