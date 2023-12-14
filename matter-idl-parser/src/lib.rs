@@ -102,28 +102,28 @@ where
 ///
 /// assert_eq!(
 ///    api_maturity("123".into()),
-///    Ok(("123".into(), ApiMaturity::STABLE))
+///    Ok(("123".into(), ApiMaturity::Stable))
 /// );
 ///
 /// let result = api_maturity("provisional 123".into()).expect("Valid");
 /// assert_eq!(result.0.fragment().to_string(), " 123");
-/// assert_eq!(result.1, ApiMaturity::PROVISIONAL);
+/// assert_eq!(result.1, ApiMaturity::Provisional);
 /// ```
 pub fn api_maturity(span: Span) -> IResult<Span, ApiMaturity, ParseError> {
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("stable").parse(span) {
-        return Ok((span, ApiMaturity::STABLE));
+        return Ok((span, ApiMaturity::Stable));
     }
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("provisional").parse(span) {
-        return Ok((span, ApiMaturity::PROVISIONAL));
+        return Ok((span, ApiMaturity::Provisional));
     }
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("internal").parse(span) {
-        return Ok((span, ApiMaturity::INTERNAL));
+        return Ok((span, ApiMaturity::Internal));
     }
     if let Ok((span, _)) = tag_no_case::<_, _, ()>("deprecated").parse(span) {
-        return Ok((span, ApiMaturity::DEPRECATED));
+        return Ok((span, ApiMaturity::Deprecated));
     }
 
-    Ok((span, ApiMaturity::STABLE))
+    Ok((span, ApiMaturity::Stable))
 }
 
 /// Parses a hex-formated integer
@@ -362,7 +362,7 @@ pub fn parse_id(span: Span) -> IResult<Span, &str, ParseError> {
 ///         ConstantEntry {
 ///             id: "kConstant".into(),
 ///             code: 0x123,
-///             maturity: ApiMaturity::PROVISIONAL
+///             maturity: ApiMaturity::Provisional
 ///         }
 /// );
 /// ```
@@ -1485,20 +1485,20 @@ mod tests {
           }
         ".into()), Cluster {
             doc_comment: Some(" This is totally made up ".into()),
-            maturity: ApiMaturity::INTERNAL,
+            maturity: ApiMaturity::Internal,
             id: "MyTestCluster".into(),
             code: 0x123,
             revision: 22,
             enums: vec![
                 Enum {
                     doc_comment: None,
-                    maturity: ApiMaturity::STABLE,
+                    maturity: ApiMaturity::Stable,
                     id: "ApplyUpdateActionEnum".into(),
                     base_type: "enum8".into(),
                     entries: vec![
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kProceed".into(), code: 0 },
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kAwaitNextAction".into(), code: 1 },
-                        ConstantEntry { maturity: ApiMaturity::STABLE, id: "kDiscontinue".into(), code: 2 },
+                        ConstantEntry { maturity: ApiMaturity::Stable, id: "kProceed".into(), code: 0 },
+                        ConstantEntry { maturity: ApiMaturity::Stable, id: "kAwaitNextAction".into(), code: 1 },
+                        ConstantEntry { maturity: ApiMaturity::Stable, id: "kDiscontinue".into(), code: 2 },
                     ]
                },
             ],
@@ -1524,7 +1524,7 @@ mod tests {
             structs: vec![
                 Struct {
                     doc_comment: None,
-                    maturity: ApiMaturity::STABLE,
+                    maturity: ApiMaturity::Stable,
                     struct_type: StructType::Response(5),
                     id: "CommissioningCompleteResponse".into(),
                     fields: vec![StructField {
@@ -1540,13 +1540,13 @@ mod tests {
             ],
             bitmaps: vec![Bitmap {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 id: "Feature".into(),
                 base_type: "bitmap32".into(),
-                entries: vec![ConstantEntry { maturity: ApiMaturity::STABLE, id: "kCalendarFormat".into(), code: 1 }] }],
+                entries: vec![ConstantEntry { maturity: ApiMaturity::Stable, id: "kCalendarFormat".into(), code: 1 }] }],
             events: vec![Event {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 priority: EventPriority::Info,
                 access: AccessPrivilege::View,
                 id: "StateChanged".into(),
@@ -1568,14 +1568,14 @@ mod tests {
             parse_attribute("attribute int16u identifyTime = 123;".into()),
             Attribute {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 field: StructField {
                     field: Field {
                         data_type: DataType::scalar("int16u"),
                         id: "identifyTime".into(),
                         code: 123,
                     },
-                    maturity: ApiMaturity::STABLE,
+                    maturity: ApiMaturity::Stable,
                     is_optional: false,
                     is_nullable: false,
                     is_fabric_sensitive: false,
@@ -1600,14 +1600,14 @@ mod tests {
             ),
             Attribute {
                 doc_comment: Some("mix of tests".into()),
-                maturity: ApiMaturity::INTERNAL,
+                maturity: ApiMaturity::Internal,
                 field: StructField {
                     field: Field {
                         data_type: DataType::list_of("boolean"),
                         id: "x".into(),
                         code: 0x123,
                     },
-                    maturity: ApiMaturity::STABLE,
+                    maturity: ApiMaturity::Stable,
                     is_optional: true,
                     is_nullable: false,
                     is_fabric_sensitive: false,
@@ -1630,7 +1630,7 @@ mod tests {
             ".into()),
             Command {
                 doc_comment: Some(" Test with many options. ".into()),
-                maturity: ApiMaturity::INTERNAL,
+                maturity: ApiMaturity::Internal,
                 access: AccessPrivilege::Administer,
                 id: "GetSetupPIN".into(),
                 input: Some("GetSetupPINRequest".into()),
@@ -1644,7 +1644,7 @@ mod tests {
             parse_command("command TestVeryBasic(): DefaultSuccess = 0x123;".into()),
             Command {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 access: AccessPrivilege::Operate,
                 id: "TestVeryBasic".into(),
                 input: None,
@@ -1671,7 +1671,7 @@ mod tests {
             ),
             Event {
                 doc_comment: Some(" this is a catch-all ".into()),
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 priority: EventPriority::Info,
                 access: AccessPrivilege::Administer,
                 id: "AccessControlEntryChanged".into(),
@@ -1684,7 +1684,7 @@ mod tests {
                             id: "adminNodeID".into(),
                             code: 1,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: true,
                         is_fabric_sensitive: false,
@@ -1695,7 +1695,7 @@ mod tests {
                             id: "fabricIndex".into(),
                             code: 254,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1752,7 +1752,7 @@ mod tests {
             ),
             Struct {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 struct_type: StructType::Regular,
                 id: "ExtensionFieldSet".into(),
                 fields: vec![
@@ -1762,7 +1762,7 @@ mod tests {
                             id: "clusterID".into(),
                             code: 0,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1773,7 +1773,7 @@ mod tests {
                             id: "attributeValueList".into(),
                             code: 1,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1793,7 +1793,7 @@ mod tests {
             ),
             Struct {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 struct_type: StructType::Request,
                 id: "TestEventTriggerRequest".into(),
                 fields: vec![
@@ -1803,7 +1803,7 @@ mod tests {
                             id: "enableKey".into(),
                             code: 0,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1814,7 +1814,7 @@ mod tests {
                             id: "eventTrigger".into(),
                             code: 1,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1836,7 +1836,7 @@ mod tests {
             ),
             Struct {
                 doc_comment: Some(" this tests responses ".into()),
-                maturity: ApiMaturity::INTERNAL,
+                maturity: ApiMaturity::Internal,
                 struct_type: StructType::Response(2),
                 id: "TimeSnapshotResponse".into(),
                 fields: vec![
@@ -1846,7 +1846,7 @@ mod tests {
                             id: "systemTimeUs".into(),
                             code: 0,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: false,
                         is_fabric_sensitive: false,
@@ -1857,7 +1857,7 @@ mod tests {
                             id: "UTCTimeUs".into(),
                             code: 1,
                         },
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         is_optional: false,
                         is_nullable: true,
                         is_fabric_sensitive: false,
@@ -1878,7 +1878,7 @@ mod tests {
             ),
             Struct {
                 doc_comment: None,
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 struct_type: StructType::Regular,
                 id: "ProviderLocation".into(),
                 fields: vec![
@@ -1922,7 +1922,7 @@ mod tests {
                     id: "sceneCount".into(),
                     code: 0,
                 },
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 is_optional: false,
                 is_nullable: false,
                 is_fabric_sensitive: false,
@@ -1936,7 +1936,7 @@ mod tests {
                     id: "currentScene".into(),
                     code: 1,
                 },
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 is_optional: false,
                 is_nullable: false,
                 is_fabric_sensitive: true,
@@ -1952,7 +1952,7 @@ mod tests {
                     id: "extensionFieldSets".into(),
                     code: 5,
                 },
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 is_optional: true,
                 is_nullable: true,
                 is_fabric_sensitive: false,
@@ -2005,37 +2005,37 @@ mod tests {
             ),
             Enum {
                 doc_comment: Some(" Documented ".into()),
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 id: "EffectIdentifierEnum".into(),
                 base_type: "enum8".into(),
                 entries: vec![
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kBlink".into(),
                         code: 0,
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kBreathe".into(),
                         code: 1,
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kOkay".into(),
                         code: 2,
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kChannelChange".into(),
                         code: 11,
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kFinishEffect".into(),
                         code: 254,
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kStopEffect".into(),
                         code: 255,
                     },
@@ -2062,27 +2062,27 @@ mod tests {
             .1,
             Bitmap {
                 doc_comment: Some(" Test feature bitmap ".into()),
-                maturity: ApiMaturity::STABLE,
+                maturity: ApiMaturity::Stable,
                 id: "Feature".into(),
                 base_type: "bitmap32".into(),
                 entries: vec![
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kSceneNames".into(),
                         code: 0x01
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kExplicit".into(),
                         code: 0x02
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kTableSize".into(),
                         code: 0x04
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::PROVISIONAL,
+                        maturity: ApiMaturity::Provisional,
                         id: "kFabricScenes".into(),
                         code: 0x08
                     },
@@ -2105,12 +2105,12 @@ mod tests {
                 "".into(),
                 vec![
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "a".into(),
                         code: 1
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::PROVISIONAL,
+                        maturity: ApiMaturity::Provisional,
                         id: "b".into(),
                         code: 2
                     },
@@ -2130,12 +2130,12 @@ mod tests {
                 "suffix".into(),
                 vec![
                     ConstantEntry {
-                        maturity: ApiMaturity::STABLE,
+                        maturity: ApiMaturity::Stable,
                         id: "kConstantOne".into(),
                         code: 123
                     },
                     ConstantEntry {
-                        maturity: ApiMaturity::INTERNAL,
+                        maturity: ApiMaturity::Internal,
                         id: "kAnother".into(),
                         code: 0x23abc
                     },
@@ -2148,28 +2148,28 @@ mod tests {
     fn test_parse_maturity() {
         assert_eq!(
             api_maturity("123".into()),
-            Ok(("123".into(), ApiMaturity::STABLE))
+            Ok(("123".into(), ApiMaturity::Stable))
         );
         assert_eq!(
             remove_loc(api_maturity("stable abc".into())),
-            Ok((" abc".into(), ApiMaturity::STABLE))
+            Ok((" abc".into(), ApiMaturity::Stable))
         );
         assert_eq!(
             remove_loc(api_maturity("provisional abc".into())),
-            Ok((" abc".into(), ApiMaturity::PROVISIONAL))
+            Ok((" abc".into(), ApiMaturity::Provisional))
         );
         assert_eq!(
             remove_loc(api_maturity("internal xyz".into())),
-            Ok((" xyz".into(), ApiMaturity::INTERNAL))
+            Ok((" xyz".into(), ApiMaturity::Internal))
         );
         assert_eq!(
             remove_loc(api_maturity("deprecated foobar".into())),
-            Ok((" foobar".into(), ApiMaturity::DEPRECATED))
+            Ok((" foobar".into(), ApiMaturity::Deprecated))
         );
 
         assert_eq!(
             remove_loc(api_maturity("DepreCAteD CaseTest".into())),
-            Ok((" CaseTest".into(), ApiMaturity::DEPRECATED))
+            Ok((" CaseTest".into(), ApiMaturity::Deprecated))
         );
     }
 
@@ -2357,7 +2357,7 @@ mod tests {
                 ConstantEntry {
                     id: "a".into(),
                     code: 0,
-                    maturity: ApiMaturity::STABLE
+                    maturity: ApiMaturity::Stable
                 }
             ))
         );
@@ -2369,7 +2369,7 @@ mod tests {
                 ConstantEntry {
                     id: "xyz".into(),
                     code: 0x123,
-                    maturity: ApiMaturity::PROVISIONAL
+                    maturity: ApiMaturity::Provisional
                 }
             ))
         );
@@ -2381,7 +2381,7 @@ mod tests {
                 ConstantEntry {
                     id: "kTest".into(),
                     code: 0xABC,
-                    maturity: ApiMaturity::INTERNAL
+                    maturity: ApiMaturity::Internal
                 }
             ))
         );
@@ -2401,7 +2401,7 @@ mod tests {
                 ConstantEntry {
                     id: "kTest".into(),
                     code: 0xABC,
-                    maturity: ApiMaturity::INTERNAL
+                    maturity: ApiMaturity::Internal
                 }
             ))
         );
@@ -2422,7 +2422,7 @@ mod tests {
                 ConstantEntry {
                     id: "kTest".into(),
                     code: 0xABC,
-                    maturity: ApiMaturity::INTERNAL
+                    maturity: ApiMaturity::Internal
                 }
             ))
         );

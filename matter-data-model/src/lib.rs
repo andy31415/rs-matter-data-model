@@ -8,10 +8,10 @@ pub mod endpoint_composition;
 #[non_exhaustive]
 pub enum ApiMaturity {
     #[default]
-    STABLE,
-    PROVISIONAL,
-    INTERNAL,
-    DEPRECATED,
+    Stable,
+    Provisional,
+    Internal,
+    Deprecated,
 }
 
 /// A named numeric value.
@@ -180,7 +180,7 @@ impl Default for Command {
         Self {
             access: AccessPrivilege::Operate,
             doc_comment: None,
-            maturity: ApiMaturity::STABLE,
+            maturity: ApiMaturity::Stable,
             id: "".into(),
             input: None,
             output: "DefaultSuccess".into(),
@@ -209,7 +209,7 @@ impl Default for Attribute {
     fn default() -> Self {
         Self {
             doc_comment: None,
-            maturity: ApiMaturity::STABLE,
+            maturity: ApiMaturity::Stable,
             field: StructField::default(),
             read_acl: AccessPrivilege::View,
             write_acl: AccessPrivilege::Operate,
