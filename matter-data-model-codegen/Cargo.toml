@@ -9,8 +9,8 @@ edition = "2021"
 quote = "1.0.33"
 matter-data-model={path = "../matter-data-model"}
 proc-macro2 = "1.0.70"
-assert-tokenstreams-eq = "0.1.0"
 
 [dev-dependencies]
+assert-tokenstreams-eq = "0.1.0"
 syn = {version="2.0.41", features = ["extra-traits"]}
 matter-idl-parser={path = "../matter-idl-parser"}
